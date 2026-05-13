@@ -1,0 +1,377 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+/* ============================================================
+   L'AFFAIRE · Editorial Trust Console
+   Cream paper × ink × vermillion × olive.
+   Newsreader (display) + Funnel Sans (body) + JetBrains Mono.
+   ============================================================ */
+
+@custom-variant dark (&:is(.dark *));
+
+:root {
+  /* ─── shadcn semantic tokens (light) ─── */
+  --background:           oklch(0.965 0.018 80);     /* #FAF6EB cream paper */
+  --foreground:           oklch(0.165 0.008 50);     /* #1A1714 warm ink */
+
+  --card:                 oklch(0.985 0.012 85);     /* nearly white */
+  --card-foreground:      oklch(0.165 0.008 50);
+
+  --popover:              oklch(0.985 0.012 85);
+  --popover-foreground:   oklch(0.165 0.008 50);
+
+  --primary:              oklch(0.165 0.008 50);     /* ink as primary */
+  --primary-foreground:   oklch(0.965 0.018 80);
+
+  --secondary:            oklch(0.925 0.020 75);     /* muted cream */
+  --secondary-foreground: oklch(0.235 0.012 50);
+
+  --muted:                oklch(0.925 0.020 75);
+  --muted-foreground:     oklch(0.485 0.018 65);     /* warm gray */
+
+  --accent:               oklch(0.910 0.030 65);     /* warm accent surface */
+  --accent-foreground:    oklch(0.235 0.012 50);
+
+  --destructive:          oklch(0.515 0.180 28);     /* #B83227 deep vermillion */
+  --destructive-foreground: oklch(0.985 0.012 85);
+
+  --border:               oklch(0.880 0.020 80);     /* hairline tan */
+  --input:                oklch(0.880 0.020 80);
+  --ring:                 oklch(0.515 0.180 28);
+
+  /* charts */
+  --chart-1: oklch(0.515 0.180 28);    /* vermillion */
+  --chart-2: oklch(0.540 0.090 130);   /* olive */
+  --chart-3: oklch(0.680 0.130 60);    /* caramel */
+  --chart-4: oklch(0.430 0.105 250);   /* ink blue */
+  --chart-5: oklch(0.380 0.040 50);    /* graphite */
+
+  /* L'Affaire signature colors */
+  --ink:        oklch(0.165 0.008 50);
+  --ink-soft:   oklch(0.330 0.010 50);
+  --paper:      oklch(0.965 0.018 80);
+  --paper-warm: oklch(0.935 0.025 70);
+  --vermillion: oklch(0.515 0.180 28);
+  --vermillion-soft: oklch(0.680 0.110 30);
+  --olive:      oklch(0.540 0.090 130);
+  --olive-soft: oklch(0.680 0.070 130);
+  --caramel:    oklch(0.680 0.130 60);
+  --ochre:      oklch(0.745 0.130 80);
+  --stamp:      oklch(0.460 0.155 28);
+
+  --radius: 0.5rem;
+}
+
+.dark {
+  /* ─── Warroom · warm-black inverted ─── */
+  --background:           oklch(0.155 0.012 50);     /* #15120E warm black */
+  --foreground:           oklch(0.920 0.025 80);     /* cream text */
+
+  --card:                 oklch(0.195 0.014 55);
+  --card-foreground:      oklch(0.920 0.025 80);
+
+  --popover:              oklch(0.195 0.014 55);
+  --popover-foreground:   oklch(0.920 0.025 80);
+
+  --primary:              oklch(0.920 0.025 80);
+  --primary-foreground:   oklch(0.155 0.012 50);
+
+  --secondary:            oklch(0.245 0.014 55);
+  --secondary-foreground: oklch(0.920 0.025 80);
+
+  --muted:                oklch(0.245 0.014 55);
+  --muted-foreground:     oklch(0.660 0.020 70);
+
+  --accent:               oklch(0.300 0.030 55);
+  --accent-foreground:    oklch(0.920 0.025 80);
+
+  --destructive:          oklch(0.620 0.170 28);     /* brighter vermillion on dark */
+  --destructive-foreground: oklch(0.155 0.012 50);
+
+  --border:               oklch(0.290 0.014 55);
+  --input:                oklch(0.290 0.014 55);
+  --ring:                 oklch(0.620 0.170 28);
+
+  --ink:        oklch(0.920 0.025 80);
+  --ink-soft:   oklch(0.660 0.020 70);
+  --paper:      oklch(0.155 0.012 50);
+  --paper-warm: oklch(0.195 0.014 55);
+  --vermillion: oklch(0.620 0.170 28);
+  --vermillion-soft: oklch(0.700 0.120 30);
+  --olive:      oklch(0.660 0.090 130);
+  --olive-soft: oklch(0.760 0.070 130);
+  --caramel:    oklch(0.740 0.130 60);
+  --ochre:      oklch(0.810 0.130 80);
+  --stamp:      oklch(0.680 0.150 28);
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+
+  /* L'Affaire signature */
+  --color-ink: var(--ink);
+  --color-ink-soft: var(--ink-soft);
+  --color-paper: var(--paper);
+  --color-paper-warm: var(--paper-warm);
+  --color-vermillion: var(--vermillion);
+  --color-vermillion-soft: var(--vermillion-soft);
+  --color-olive: var(--olive);
+  --color-olive-soft: var(--olive-soft);
+  --color-caramel: var(--caramel);
+  --color-ochre: var(--ochre);
+  --color-stamp: var(--stamp);
+
+  --font-display: var(--font-newsreader), "Newsreader", "Source Serif Pro", "Noto Serif SC", Georgia, serif;
+  --font-body:    var(--font-funnel), "Funnel Sans", var(--font-noto-sans), "Noto Sans SC", system-ui, sans-serif;
+  --font-mono:    var(--font-jet-mono), "JetBrains Mono", ui-monospace, monospace;
+  --font-zh:      var(--font-noto-serif), "Noto Serif SC", "Songti SC", serif;
+
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+
+  --animate-marquee: marquee 80s linear infinite;
+  --animate-blink: blink 1s steps(1) infinite;
+  --animate-pulse-ring: pulse-ring 1.8s cubic-bezier(0, 0, 0.2, 1) infinite;
+  --animate-rise: rise 0.7s cubic-bezier(0.25, 1, 0.5, 1) both;
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  html, body {
+    @apply bg-background text-foreground;
+    font-family: var(--font-body);
+    font-feature-settings: "ss01", "cv11", "calt";
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  ::selection {
+    background: var(--vermillion);
+    color: var(--paper);
+  }
+}
+
+/* ============================================================
+   Typography helpers
+   ============================================================ */
+.font-display {
+  font-family: var(--font-display);
+  font-optical-sizing: auto;
+  font-feature-settings: "ss01", "ss02";
+}
+.font-display-italic {
+  font-family: var(--font-display);
+  font-style: italic;
+  font-optical-sizing: auto;
+}
+.font-mono { font-family: var(--font-mono); }
+
+.eyebrow {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+  font-weight: 500;
+}
+
+.numplate {
+  font-family: var(--font-display);
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum", "ss01";
+  letter-spacing: -0.02em;
+  font-optical-sizing: auto;
+}
+
+/* drop cap — for the lead paragraph in the hero */
+.drop-cap::first-letter {
+  font-family: var(--font-display);
+  font-style: italic;
+  float: left;
+  font-size: 4.2em;
+  line-height: 0.84;
+  padding: 0.08em 0.12em 0 0;
+  color: var(--vermillion);
+}
+
+/* ============================================================
+   Atmosphere · paper grain (very subtle on the light theme)
+   ============================================================ */
+.paper-grain {
+  position: relative;
+  isolation: isolate;
+}
+.paper-grain::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 1;
+  opacity: 0.5;
+  mix-blend-mode: multiply;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='240' height='240'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.78' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0.10 0 0 0 0 0.09 0 0 0 0 0.08 0 0 0 0.4 0'/></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>");
+}
+
+/* editorial column rule */
+.col-rule { background: var(--border); width: 1px; }
+
+/* horizontal hairline used between sections */
+.hr-editorial {
+  border: 0;
+  height: 1px;
+  background: var(--ink);
+  opacity: 0.85;
+}
+
+/* dotted leader, the dot-line between item and value in a glossary */
+.leader {
+  flex: 1;
+  height: 1px;
+  background-image: radial-gradient(circle, currentColor 1px, transparent 1.2px);
+  background-size: 5px 1px;
+  background-repeat: repeat-x;
+  opacity: 0.35;
+  align-self: end;
+  margin-bottom: 6px;
+}
+
+/* "rubric" — date/byline strip at section heads */
+.rubric {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+.rubric::before {
+  content: "";
+  display: inline-block;
+  width: 28px;
+  height: 1px;
+  background: var(--vermillion);
+}
+
+/* editorial side-margin numerals (used as section markers) */
+.folio {
+  font-family: var(--font-display);
+  font-style: italic;
+  font-size: 13px;
+  letter-spacing: 0.06em;
+  color: var(--ink-soft);
+}
+
+/* ============================================================
+   Animations
+   ============================================================ */
+@keyframes marquee {
+  from { transform: translateX(0); }
+  to   { transform: translateX(-50%); }
+}
+@keyframes blink {
+  0%, 49% { opacity: 1; }
+  50%, 100% { opacity: 0; }
+}
+@keyframes pulse-ring {
+  0%   { transform: scale(0.9); opacity: 0.5; }
+  100% { transform: scale(2.4); opacity: 0; }
+}
+@keyframes rise {
+  from { opacity: 0; transform: translateY(14px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes scan-sweep {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+
+.marquee { animation: var(--animate-marquee); }
+.cursor-blink::after {
+  content: "│";
+  margin-left: 2px;
+  color: var(--vermillion);
+  animation: var(--animate-blink);
+}
+
+/* ============================================================
+   Pulse dot (signal indicator)
+   ============================================================ */
+.signal-dot {
+  position: relative;
+  display: inline-flex;
+  width: 8px;
+  height: 8px;
+}
+.signal-dot::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 999px;
+  background: currentColor;
+  opacity: 0.4;
+  animation: var(--animate-pulse-ring);
+}
+.signal-dot::after {
+  content: "";
+  position: absolute;
+  inset: 1.5px;
+  border-radius: 999px;
+  background: currentColor;
+}
+
+/* ============================================================
+   Misc
+   ============================================================ */
+button { cursor: pointer; }
+
+.glass {
+  background: color-mix(in oklab, var(--paper) 78%, transparent);
+  backdrop-filter: blur(12px) saturate(140%);
+  -webkit-backdrop-filter: blur(12px) saturate(140%);
+}
+
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: var(--paper-warm); }
+::-webkit-scrollbar-thumb {
+  background: color-mix(in oklab, var(--ink) 25%, transparent);
+  border-radius: 999px;
+  border: 2px solid var(--paper-warm);
+}
+::-webkit-scrollbar-thumb:hover { background: color-mix(in oklab, var(--ink) 45%, transparent); }
+
+@media (prefers-reduced-motion: reduce) {
+  .marquee, .cursor-blink::after, .signal-dot::before {
+    animation: none !important;
+  }
+}

@@ -473,6 +473,14 @@
   from { opacity: 0; transform: translateY(18px); }
   to   { opacity: 1; transform: translateY(0); }
 }
+@keyframes rise-soft {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
 @keyframes float {
   0%,100% { transform: translateY(0); }
   50% { transform: translateY(-12px); }
@@ -489,9 +497,55 @@
 @keyframes spin-slow { from { transform: rotate(0); } to { transform: rotate(360deg); } }
 
 .rise { animation: var(--animate-rise); }
+.rise-soft { animation: var(--animate-rise-soft); }
+.fade-in { animation: var(--animate-fade-in); }
 .float { animation: var(--animate-float); }
 .drift { animation: var(--animate-drift); }
 .spin-slow { animation: spin-slow 40s linear infinite; }
+
+/* Stagger 入场：在父元素加 .stagger，子元素自动按 60ms 阶梯延迟（≤ 12 个） */
+.stagger > * { animation: var(--animate-rise-soft); }
+.stagger > *:nth-child(1)  { animation-delay: 40ms; }
+.stagger > *:nth-child(2)  { animation-delay: 100ms; }
+.stagger > *:nth-child(3)  { animation-delay: 160ms; }
+.stagger > *:nth-child(4)  { animation-delay: 220ms; }
+.stagger > *:nth-child(5)  { animation-delay: 280ms; }
+.stagger > *:nth-child(6)  { animation-delay: 340ms; }
+.stagger > *:nth-child(7)  { animation-delay: 400ms; }
+.stagger > *:nth-child(8)  { animation-delay: 460ms; }
+.stagger > *:nth-child(9)  { animation-delay: 520ms; }
+.stagger > *:nth-child(10) { animation-delay: 580ms; }
+.stagger > *:nth-child(11) { animation-delay: 640ms; }
+.stagger > *:nth-child(12) { animation-delay: 700ms; }
+
+/* 进度条增长 0 → 当前 width（搭配 style={{ "--bar-w": "68%" }}） */
+@keyframes bar-grow {
+  from { width: 0; }
+  to   { width: var(--bar-w); }
+}
+.bar-grow { animation: bar-grow 0.9s cubic-bezier(0.22, 1, 0.36, 1) both; animation-delay: 240ms; }
+
+/* hover-press：可点击卡片按下时的轻微反馈 */
+.press-soft { transition: transform .18s ease, box-shadow .18s ease; }
+.press-soft:active { transform: scale(0.985); }
+
+/* 标签按钮滑入指示 */
+.tab-active-indicator {
+  position: relative;
+}
+.tab-active-indicator::after {
+  content: "";
+  position: absolute;
+  left: 12%; right: 12%; bottom: -1px;
+  height: 2px;
+  background: var(--indigo);
+  border-radius: 2px;
+  animation: tab-underline 0.32s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+@keyframes tab-underline {
+  from { transform: scaleX(0.2); opacity: 0; }
+  to   { transform: scaleX(1); opacity: 1; }
+}
 
 .shimmer {
   background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--ink) 10%, transparent), transparent);
@@ -514,9 +568,11 @@
 button { cursor: pointer; }
 
 @media (prefers-reduced-motion: reduce) {
-  .marquee-track, .float, .drift, .spin-slow, .shimmer, .cursor-blink::after, .signal-dot::before {
+  .marquee-track, .float, .drift, .spin-slow, .shimmer, .cursor-blink::after, .signal-dot::before,
+  .rise, .rise-soft, .fade-in, .stagger > *, .tab-active-indicator::after {
     animation: none !important;
   }
+  .press-soft:active { transform: none; }
 }
 
 

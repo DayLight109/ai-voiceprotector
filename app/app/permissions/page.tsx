@@ -41,7 +41,7 @@ export default function PermissionsPage() {
       />
 
       <div className="grid grid-cols-12 gap-5">
-        <div className="col-span-12 lg:col-span-7 space-y-4">
+        <div className="col-span-12 lg:col-span-7 space-y-4 stagger">
           <div className="panel p-6">
             <SectionTitle icon={Bell} label="告警与推送" />
             <FormRow label="App 内推送" desc="即时弹窗 + 通知栏"><Toggle checked={p.pushApp} onChange={(v) => upd("pushApp", v)} /></FormRow>
@@ -57,7 +57,7 @@ export default function PermissionsPage() {
           </div>
         </div>
 
-        <div className="col-span-12 lg:col-span-5 space-y-4">
+        <div className="col-span-12 lg:col-span-5 space-y-4 stagger">
           <div className="panel p-6">
             <SectionTitle icon={Mic} label="数据与隐私" />
             <FormRow label="录音同步至云端" desc="便于跨设备查看，可被管理员审计"><Toggle checked={p.recordSync} onChange={(v) => upd("recordSync", v)} /></FormRow>

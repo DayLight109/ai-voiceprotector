@@ -85,7 +85,7 @@ export default function ProtectionPage() {
       />
 
       {/* 设置区 */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+      <div className="stagger grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
         <div className="panel p-5">
           <div className="flex items-center justify-between mb-3">
             <div className="font-mono text-[10px] uppercase tracking-[0.14em] text-ink-soft font-bold">扫描匹配源</div>
@@ -149,7 +149,7 @@ export default function ProtectionPage() {
       </div>
 
       {/* Tab 切换 */}
-      <div className="panel p-5 md:p-6">
+      <div className="panel p-5 md:p-6 rise-soft" style={{ animationDelay: "300ms" }}>
         <div className="flex items-center justify-between mb-5 flex-wrap gap-3">
           <div className="flex items-center gap-1 p-1 rounded-full bg-canvas-2 border border-border">
             {[
@@ -180,6 +180,7 @@ export default function ProtectionPage() {
         </div>
 
         {tab === "blacklist" ? (
+          <div key="bl" className="fade-in">
           <DataTable<BlackEntry>
             rows={blistView}
             searchKeys={["number", "reason", "category"]}
@@ -204,7 +205,9 @@ export default function ProtectionPage() {
               </div>
             )}
           />
+          </div>
         ) : (
+          <div key="wl" className="fade-in">
           <DataTable<WhiteEntry>
             rows={wlist}
             searchKeys={["number", "name", "relation"]}
@@ -221,6 +224,7 @@ export default function ProtectionPage() {
               </div>
             )}
           />
+          </div>
         )}
       </div>
 

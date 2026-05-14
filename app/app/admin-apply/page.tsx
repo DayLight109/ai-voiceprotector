@@ -38,7 +38,7 @@ export default function AdminApplyPage() {
       />
 
       <div className="grid grid-cols-12 gap-5">
-        <section className="col-span-12 lg:col-span-7 panel p-6 md:p-8">
+        <section className="col-span-12 lg:col-span-7 panel p-6 md:p-8 rise-soft" style={{ animationDelay: "60ms" }}>
           <form onSubmit={submit} className="space-y-5">
             <div>
               <label className="font-mono text-[10px] uppercase tracking-[0.14em] text-ink-soft font-bold block mb-2">
@@ -110,10 +110,12 @@ export default function AdminApplyPage() {
           </form>
         </section>
 
-        <section className="col-span-12 lg:col-span-5 space-y-4">
+        <section className="col-span-12 lg:col-span-5 space-y-4 stagger">
           <div className="panel p-6">
             <div className="font-mono text-[10px] uppercase tracking-[0.14em] text-ink-soft font-bold mb-3">CURRENT STATUS</div>
-            <StatusBlock status={status} />
+            <div key={status} className="fade-in">
+              <StatusBlock status={status} />
+            </div>
           </div>
 
           <div className="panel p-6" style={{ background: "var(--indigo-soft)" }}>

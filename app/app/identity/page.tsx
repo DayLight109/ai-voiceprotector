@@ -43,7 +43,7 @@ export default function IdentityPage() {
       />
 
       {/* 状态卡片 */}
-      <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 mb-6">
+      <div className="stagger grid grid-cols-2 lg:grid-cols-5 gap-3 mb-6">
         {CREDS.map((c) => (
           <div key={c.k} className="panel p-4">
             <div
@@ -86,7 +86,7 @@ export default function IdentityPage() {
           {(() => {
             const cur = CREDS.find((c) => c.k === tab)!;
             return (
-              <div>
+              <div key={tab} className="fade-in">
                 <div className="font-display text-[18px] font-extrabold mb-1">{cur.label} 认证</div>
                 <p className="text-[13px] text-ink-soft font-medium mb-5">
                   填写或拍照上传后，调用公安身份信息核验接口异步比对。
@@ -130,7 +130,7 @@ export default function IdentityPage() {
           })()}
         </section>
 
-        <section className="col-span-12 lg:col-span-5 space-y-3">
+        <section className="col-span-12 lg:col-span-5 space-y-3 stagger">
           <div className="panel p-6">
             <div className="font-display text-[16px] font-extrabold mb-1">认证模式</div>
             <div className="font-mono text-[10px] uppercase tracking-[0.14em] text-ink-soft font-bold mb-3">VERIFICATION MODE</div>

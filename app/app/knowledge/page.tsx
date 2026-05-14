@@ -63,7 +63,7 @@ export default function KnowledgePage() {
       </div>
 
       <div className="grid grid-cols-12 gap-5">
-        <div className="col-span-12 lg:col-span-7 space-y-3">
+        <div className="col-span-12 lg:col-span-7 space-y-3 stagger">
           {list.length === 0 && (
             <div className="panel p-10 text-center text-ink-soft">没有匹配的文章</div>
           )}
@@ -71,7 +71,7 @@ export default function KnowledgePage() {
             <button
               key={a.id}
               onClick={() => setActive(a)}
-              className="panel panel-lift p-5 w-full text-left flex items-start gap-4"
+              className="panel panel-lift press-soft p-5 w-full text-left flex items-start gap-4"
               style={{ borderColor: active?.id === a.id ? "var(--indigo)" : undefined }}
             >
               <div
@@ -102,7 +102,7 @@ export default function KnowledgePage() {
         <div className="col-span-12 lg:col-span-5">
           <div className="panel p-6 sticky top-24">
             {active ? (
-              <>
+              <div key={active.id} className="fade-in">
                 <span className="tag-chip" data-tone="coral">{active.category}</span>
                 <h2 className="mt-3 font-display text-[22px] font-extrabold tracking-tight leading-[1.25]">
                   {active.title}
@@ -124,7 +124,7 @@ export default function KnowledgePage() {
                     如已遭遇诈骗，请立即拨打 96110 反诈专线并保留通话录音、转账记录。
                   </div>
                 </div>
-              </>
+              </div>
             ) : (
               <div className="text-center py-16">
                 <BookOpen size={36} className="mx-auto text-ink-ghost mb-3" />

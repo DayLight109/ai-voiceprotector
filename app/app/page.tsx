@@ -1,6 +1,7 @@
 "use client";
 import { ShieldCheck, Bell, Users, ListChecks, PhoneOff, Radio, Waves, ScanLine, ArrowUpRight, Plus, Circle } from "lucide-react";
 import AppShell from "@/components/AppShell";
+import CountUp from "@/components/shared/CountUp";
 import { FAMILY_NAV } from "@/lib/nav";
 
 const ALERTS = [
@@ -49,12 +50,12 @@ export default function FamilyDashboard() {
       </div>
 
       {/* KPI 四宫格 */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+      <div className="stagger grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
         {[
-          { label: "今日拦截", val: "3", sub: "次 AI 合成通话", tint: "var(--coral)", soft: "var(--coral-soft)", icon: PhoneOff },
-          { label: "本月预警", val: "47", sub: "已推送家属", tint: "var(--amber)", soft: "var(--amber-soft)", icon: Bell },
-          { label: "白名单", val: "128", sub: "可信联系人", tint: "var(--mint)", soft: "var(--mint-soft)", icon: ListChecks },
-          { label: "守护设备", val: "3", sub: "家庭成员在线", tint: "var(--indigo)", soft: "var(--indigo-soft)", icon: Users },
+          { label: "今日拦截", val: 3, sub: "次 AI 合成通话", tint: "var(--coral)", soft: "var(--coral-soft)", icon: PhoneOff },
+          { label: "本月预警", val: 47, sub: "已推送家属", tint: "var(--amber)", soft: "var(--amber-soft)", icon: Bell },
+          { label: "白名单", val: 128, sub: "可信联系人", tint: "var(--mint)", soft: "var(--mint-soft)", icon: ListChecks },
+          { label: "守护设备", val: 3, sub: "家庭成员在线", tint: "var(--indigo)", soft: "var(--indigo-soft)", icon: Users },
         ].map((k) => (
           <div key={k.label} className="panel panel-lift p-5 relative overflow-hidden">
             <div className="absolute -top-8 -right-8 w-24 h-24 rounded-full opacity-60" style={{ background: k.soft }} />
@@ -64,7 +65,9 @@ export default function FamilyDashboard() {
               </div>
               <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-ink-soft font-bold">{k.label}</span>
             </div>
-            <div className="relative numplate text-[36px] leading-none">{k.val}</div>
+            <div className="relative numplate text-[36px] leading-none">
+              <CountUp to={k.val} />
+            </div>
             <div className="relative mt-2 text-[12px] text-ink-soft font-semibold">{k.sub}</div>
           </div>
         ))}
@@ -83,7 +86,7 @@ export default function FamilyDashboard() {
             </a>
           </div>
 
-          <div className="space-y-2">
+          <div className="stagger space-y-2">
             {ALERTS.map((a, i) => {
               const tone = a.tone === "block" ? "coral" : a.tone === "warn" ? "amber" : "mint";
               const label = a.tone === "block" ? "拦截" : a.tone === "warn" ? "预警" : "通过";
@@ -128,7 +131,7 @@ export default function FamilyDashboard() {
             <h2 className="font-display text-[22px] font-extrabold mt-1">引擎实况</h2>
           </div>
 
-          <div className="space-y-3">
+          <div className="stagger space-y-3">
             {[
               { icon: Radio, name: "L1 来电溯源", lat: "22ms", load: 68, tint: "var(--indigo)", soft: "var(--indigo-soft)" },
               { icon: Waves, name: "L2 声纹取证", lat: "61ms", load: 82, tint: "var(--mint-deep)", soft: "var(--mint-soft)" },
@@ -145,7 +148,7 @@ export default function FamilyDashboard() {
                   <span className="font-mono text-[11px] font-bold" style={{ color: l.tint }}>{l.lat}</span>
                 </div>
                 <div className="h-1.5 rounded-full bg-surface overflow-hidden">
-                  <div className="h-full rounded-full" style={{ width: `${l.load}%`, background: l.tint }} />
+                  <div className="h-full rounded-full bar-grow" style={{ "--bar-w": `${l.load}%`, width: `${l.load}%`, background: l.tint } as any} />
                 </div>
                 <div className="mt-1.5 font-mono text-[10px] uppercase tracking-[0.12em] text-ink-soft font-bold">
                   负载 {l.load}%
@@ -175,9 +178,9 @@ export default function FamilyDashboard() {
             </button>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="stagger grid grid-cols-1 md:grid-cols-3 gap-4">
             {MEMBERS.map((m) => (
-              <div key={m.name} className="p-5 rounded-2xl border border-border hover:shadow-md transition-shadow">
+              <div key={m.name} className="p-5 rounded-2xl border border-border hover:shadow-md transition-all hover:-translate-y-0.5 press-soft">
                 <div className="flex items-center gap-3 mb-4">
                   <div
                     className="w-12 h-12 rounded-full flex items-center justify-center font-display text-white font-extrabold text-[16px] shadow-md"

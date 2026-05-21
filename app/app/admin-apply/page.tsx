@@ -4,29 +4,50 @@ import AppShell from "@/components/AppShell";
 import PageHeader from "@/components/shared/PageHeader";
 import { useToast } from "@/components/shared/Toast";
 import { FAMILY_NAV } from "@/lib/nav";
-import { useLocalStorage } from "@/lib/storage";
+import { api, APIError } from "@/lib/api";
+import { useSingle } from "@/lib/use-resource";
 import { UserPlus, ShieldCheck, Building2, CheckCircle2, Clock, AlertTriangle } from "lucide-react";
 
 type Status = "none" | "pending" | "approved" | "rejected";
 
 export default function AdminApplyPage() {
   const toast = useToast();
-  const [status, setStatus] = useLocalStorage<Status>("admin-apply.status", "none");
+  const statusRes = useSingle<any>(() => api.adminApply.myStatus());
   const [form, setForm] = useState({ scope: "family", reason: "", contact: "" });
+  const [submitting, setSubmitting] = useState(false);
 
-  const submit = (ev: React.FormEvent) => {
+  const rawStatus = (statusRes.data?.status as Status | undefined) ?? "none";
+  const status: Status = rawStatus;
+
+  const submit = async (ev: React.FormEvent) => {
     ev.preventDefault();
     if (!form.reason.trim() || !form.contact.trim()) {
       toast("error", "信息不完整", "请填写申请理由与联系方式");
       return;
     }
-    setStatus("pending");
-    toast("success", "申请已提交", "管理员将在 24 小时内审核");
+    setSubmitting(true);
+    try {
+      await api.adminApply.submit({
+        scope: form.scope as "family" | "biz",
+        reason: form.reason.trim(),
+        contact: form.contact.trim(),
+      });
+      toast("success", "申请已提交", "管理员将在 24 小时内审核");
+      statusRes.refresh();
+    } catch (e) {
+      if (e instanceof APIError && e.status === 403) {
+        toast("error", "权限不足");
+      } else {
+        toast("error", e instanceof APIError ? e.message : "提交失败");
+      }
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const reset = () => {
-    setStatus("none");
     setForm({ scope: "family", reason: "", contact: "" });
+    statusRes.refresh();
   };
 
   return (
@@ -102,9 +123,9 @@ export default function AdminApplyPage() {
                   撤回申请
                 </button>
               )}
-              <button type="submit" disabled={status === "pending"} className="btn-indigo py-2.5 px-5 text-[13px] disabled:opacity-60">
+              <button type="submit" disabled={status === "pending" || submitting} className="btn-indigo py-2.5 px-5 text-[13px] disabled:opacity-60">
                 <UserPlus size={14} />
-                {status === "pending" ? "审核中" : "提交申请"}
+                {status === "pending" ? "审核中" : submitting ? "提交中" : "提交申请"}
               </button>
             </div>
           </form>

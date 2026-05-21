@@ -6,8 +6,9 @@ import DataTable from "@/components/shared/DataTable";
 import Modal from "@/components/shared/Modal";
 import { useToast } from "@/components/shared/Toast";
 import { FAMILY_ADMIN_NAV, ADMIN_NAV } from "@/lib/nav";
-import { SEED, type ManagedUser } from "@/lib/mock";
-import { useLocalStorage, uid } from "@/lib/storage";
+import { type ManagedUser } from "@/lib/mock";
+import { api, APIError } from "@/lib/api";
+import { useResource } from "@/lib/use-resource";
 import { Plus, Trash2, Edit3, UserPlus } from "lucide-react";
 
 export default function FamilyUsersPage() {
@@ -17,21 +18,43 @@ export default function FamilyUsersPage() {
 export function UsersPage({ role }: { role: "family-admin" | "admin" }) {
   const toast = useToast();
   const isFam = role === "family-admin";
-  const [users, setUsers] = useLocalStorage<ManagedUser[]>(isFam ? "family.users" : "admin.users", SEED.managedUsers);
+  const list = useResource<ManagedUser>(() => api.users.list({ pageSize: 100 }));
   const [editing, setEditing] = useState<ManagedUser | null>(null);
   const [open, setOpen] = useState(false);
 
-  const onSubmit = (form: any) => {
-    if (editing) {
-      setUsers((p) => p.map((u) => (u.id === editing.id ? { ...editing, ...form } : u)));
-      toast("success", "已更新", form.name);
-    } else {
-      const entry: ManagedUser = { id: uid("u"), name: form.name, role: form.role, dept: form.dept, status: "active", email: form.email, last: "刚刚" };
-      setUsers((p) => [entry, ...p]);
-      toast("success", "已新增成员", form.name);
+  const onSubmit = async (form: any) => {
+    try {
+      if (editing) {
+        await api.users.update(editing.id, {
+          name: form.name, role: form.role, dept: form.dept,
+          email: form.email, status: editing.status,
+        } as any);
+        toast("success", "已更新", form.name);
+      } else {
+        await api.users.create({
+          name: form.name, role: form.role, dept: form.dept,
+          email: form.email, status: "active",
+          // 后端要求 password；UI 没字段，用固定占位
+          password: "Init#2026",
+        } as any);
+        toast("success", "已新增成员", `${form.name} · 已用初始密码，请通知用户登录后修改`);
+      }
+      setOpen(false);
+      setEditing(null);
+      list.refresh();
+    } catch (e) {
+      toast("error", e instanceof APIError ? e.message : "保存失败");
     }
-    setOpen(false);
-    setEditing(null);
+  };
+
+  const onDelete = async (r: ManagedUser) => {
+    try {
+      await api.users.remove(r.id);
+      toast("success", "已删除", r.name);
+      list.refresh();
+    } catch (e) {
+      toast("error", e instanceof APIError ? e.message : "删除失败");
+    }
   };
 
   return (
@@ -53,8 +76,14 @@ export function UsersPage({ role }: { role: "family-admin" | "admin" }) {
       />
 
       <div className="panel p-6">
+        {list.error && (
+          <div className="mb-4 px-4 py-3 rounded-2xl text-[13px] font-medium"
+               style={{ background: "var(--coral-soft)", color: "var(--coral-deep)", border: "1px solid var(--coral)" }}>
+            {list.error}
+          </div>
+        )}
         <DataTable<ManagedUser>
-          rows={users}
+          rows={list.items}
           searchKeys={["name", "email", "dept", "id"]}
           columns={[
             { key: "id", label: "工号", render: (r) => <span className="font-mono text-[12px] font-bold text-ink-soft">{r.id}</span> },
@@ -81,7 +110,7 @@ export function UsersPage({ role }: { role: "family-admin" | "admin" }) {
           actions={(r) => (
             <div className="flex items-center gap-1 justify-end">
               <button onClick={() => { setEditing(r); setOpen(true); }} className="w-8 h-8 rounded-lg hover:bg-canvas-2 flex items-center justify-center"><Edit3 size={13} /></button>
-              <button onClick={() => { setUsers((p) => p.filter((x) => x.id !== r.id)); toast("success", "已删除", r.name); }} className="w-8 h-8 rounded-lg hover:bg-coral-soft text-coral-deep flex items-center justify-center"><Trash2 size={13} /></button>
+              <button onClick={() => onDelete(r)} className="w-8 h-8 rounded-lg hover:bg-coral-soft text-coral-deep flex items-center justify-center"><Trash2 size={13} /></button>
             </div>
           )}
         />

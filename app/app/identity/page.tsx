@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import AppShell from "@/components/AppShell";
 import PageHeader from "@/components/shared/PageHeader";
 import FormRow from "@/components/shared/FormRow";
@@ -7,6 +7,8 @@ import Toggle from "@/components/shared/Toggle";
 import { useToast } from "@/components/shared/Toast";
 import { FAMILY_NAV } from "@/lib/nav";
 import { useLocalStorage } from "@/lib/storage";
+import { api, APIError } from "@/lib/api";
+import { useSingle } from "@/lib/use-resource";
 import { Smartphone, IdCard, BookOpen, ShieldCheck, Plane, CheckCircle2, ScanFace, Users, Heart } from "lucide-react";
 
 type CredKey = "phone" | "id" | "passport" | "military" | "hkmo";
@@ -19,19 +21,85 @@ const CREDS: { k: CredKey; label: string; icon: any; example: string }[] = [
   { k: "hkmo", label: "港澳台居民证", icon: Plane, example: "港澳台居民居住证号" },
 ];
 
+const MODE_KEYS = ["offline", "relative", "care"] as const;
+
 export default function IdentityPage() {
   const toast = useToast();
   const [tab, setTab] = useState<CredKey>("phone");
-  const [verified, setVerified] = useLocalStorage<Record<CredKey, boolean>>("identity.verified", {
-    phone: true, id: true, passport: false, military: false, hkmo: false,
-  });
-  const [offline, setOffline] = useLocalStorage("identity.offline", false);
-  const [relative, setRelative] = useLocalStorage("identity.relative", true);
-  const [care, setCare] = useLocalStorage("identity.care", false);
+  const credsRes = useSingle<any[]>(() => api.credentials.list());
+  const modesRes = useSingle<any[]>(() => api.credentials.getModes());
 
-  const verifyOne = (k: CredKey) => {
-    setVerified({ ...verified, [k]: true });
-    toast("success", "认证已提交", "公安信息接口异步回执，预计 1 分钟内完成");
+  // 前端输入：当前 tab 的姓名/号码
+  const [nameInput, setNameInput] = useState("");
+  const [valueInput, setValueInput] = useState("");
+
+  // 切换 tab 时清空输入
+  useEffect(() => {
+    setNameInput("");
+    setValueInput("");
+  }, [tab]);
+
+  // UI 偏好仍保留 localStorage（与后端 modes 区分）
+  const [uiOffline, setUiOffline] = useLocalStorage("identity.offline", false);
+  const [uiRelative, setUiRelative] = useLocalStorage("identity.relative", true);
+  const [uiCare, setUiCare] = useLocalStorage("identity.care", false);
+
+  const verified = useMemo<Record<CredKey, boolean>>(() => {
+    const m: Record<CredKey, boolean> = {
+      phone: false, id: false, passport: false, military: false, hkmo: false,
+    };
+    for (const c of credsRes.data || []) {
+      if (c?.kind && c.kind in m) m[c.kind as CredKey] = !!c.verified;
+    }
+    return m;
+  }, [credsRes.data]);
+
+  // 后端 modes -> 优先用后端值，未返回时回退 UI 偏好
+  const modesMap = useMemo<Record<string, boolean>>(() => {
+    const m: Record<string, boolean> = {};
+    for (const it of modesRes.data || []) {
+      if (it?.key) m[it.key] = !!it.enabled;
+    }
+    return m;
+  }, [modesRes.data]);
+
+  const offline = modesMap.offline ?? uiOffline;
+  const relative = modesMap.relative ?? uiRelative;
+  const care = modesMap.care ?? uiCare;
+
+  const updateMode = async (key: "offline" | "relative" | "care", enabled: boolean) => {
+    // 同步 UI 偏好（用户的 boolean UI 偏好）
+    if (key === "offline") setUiOffline(enabled);
+    if (key === "relative") setUiRelative(enabled);
+    if (key === "care") setUiCare(enabled);
+
+    try {
+      const next = MODE_KEYS.map((k) => ({
+        key: k,
+        enabled: k === key ? enabled : (modesMap[k] ?? (k === "offline" ? uiOffline : k === "relative" ? uiRelative : uiCare)),
+      }));
+      await api.credentials.setModes(next);
+      modesRes.refresh();
+    } catch (e) {
+      toast("error", e instanceof APIError ? e.message : "保存失败");
+    }
+  };
+
+  const verifyOne = async (k: CredKey) => {
+    if (!valueInput.trim()) {
+      toast("error", "请填写证件号");
+      return;
+    }
+    try {
+      // verified=false：后端会 hash 存储；后续接 OCR 后服务端置 true
+      await api.credentials.submit(k, valueInput.trim(), false);
+      toast("success", "认证已提交", "公安信息接口异步回执，预计 1 分钟内完成");
+      setNameInput("");
+      setValueInput("");
+      credsRes.refresh();
+    } catch (e) {
+      toast("error", e instanceof APIError ? e.message : "提交失败");
+    }
   };
 
   return (
@@ -94,10 +162,10 @@ export default function IdentityPage() {
 
                 <div className="space-y-4">
                   <Field label="姓名">
-                    <input className="ipt" placeholder="张三" />
+                    <input className="ipt" placeholder="张三" value={nameInput} onChange={(e) => setNameInput(e.target.value)} />
                   </Field>
                   <Field label={cur.label + " 号"}>
-                    <input className="ipt" placeholder={cur.example} />
+                    <input className="ipt" placeholder={cur.example} value={valueInput} onChange={(e) => setValueInput(e.target.value)} />
                   </Field>
                   {tab === "id" && (
                     <div className="grid grid-cols-2 gap-3">
@@ -135,13 +203,13 @@ export default function IdentityPage() {
             <div className="font-display text-[16px] font-extrabold mb-1">认证模式</div>
             <div className="font-mono text-[10px] uppercase tracking-[0.14em] text-ink-soft font-bold mb-3">VERIFICATION MODE</div>
             <FormRow label="线下认证" desc="对接公安政务大厅人工核验，72 小时内回执">
-              <Toggle checked={offline} onChange={setOffline} />
+              <Toggle checked={offline} onChange={(v) => updateMode("offline", v)} />
             </FormRow>
             <FormRow label="亲属认证" desc="允许已认证亲属为我担保，适用老人 / 儿童">
-              <Toggle checked={relative} onChange={setRelative} />
+              <Toggle checked={relative} onChange={(v) => updateMode("relative", v)} />
             </FormRow>
             <FormRow label="关怀模式" desc="放大字体、简化操作、亲属同步重要告警">
-              <Toggle checked={care} onChange={setCare} />
+              <Toggle checked={care} onChange={(v) => updateMode("care", v)} />
             </FormRow>
           </div>
 

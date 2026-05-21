@@ -18,7 +18,10 @@
       "Bash(cmd *)",
       "Bash(/c/Windows/system32/cmd.exe *)",
       "Bash(npx --no-install tsc --noEmit)",
-      "Bash(echo \"exit=$?\")"
+      "Bash(echo \"exit=$?\")",
+      "Bash(mkdir -p \"C:/Users/Lilce/Desktop/sentinel-server\")",
+      "Read(//c/Users/Lilce/Desktop/**)",
+      "Bash(/c/Python314/python *)"
     ]
   }
 }

@@ -3,15 +3,16 @@ import AppShell from "@/components/AppShell";
 import PageHeader from "@/components/shared/PageHeader";
 import CountUp from "@/components/shared/CountUp";
 import { FAMILY_ADMIN_NAV } from "@/lib/nav";
-import { SEED } from "@/lib/mock";
-import { useLocalStorage } from "@/lib/storage";
+import { api } from "@/lib/api";
+import { useResource } from "@/lib/use-resource";
+import type { ManagedUser, Recording, BlackEntry } from "@/lib/mock";
 import { Users, Mic2, Sliders, Database, ArrowUpRight, Activity, TrendingUp } from "lucide-react";
 import Link from "next/link";
 
 export default function FamilyAdminHome() {
-  const [users] = useLocalStorage("family.users", SEED.managedUsers);
-  const [recordings] = useLocalStorage("family.recordings", SEED.recordings);
-  const [blist] = useLocalStorage("family.blacklist", SEED.blacklist);
+  const users = useResource<ManagedUser>(() => api.users.list({ pageSize: 1 }));
+  const recordings = useResource<Recording>(() => api.recordings.list({ pageSize: 1 }));
+  const blist = useResource<BlackEntry>(() => api.blacklist.list({ pageSize: 1 }));
 
   return (
     <AppShell role="family-admin" userName="李梦楠" nav={FAMILY_ADMIN_NAV} breadcrumb={["SENTINEL", "家庭管理员", "总览"]}>
@@ -28,9 +29,9 @@ export default function FamilyAdminHome() {
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
         {[
-          { label: "家庭成员", val: users.length, kind: "num", sub: "在管账号", icon: Users, tint: "var(--indigo)", soft: "var(--indigo-soft)" },
-          { label: "录音数据", val: recordings.length, kind: "num", sub: "条已留样", icon: Mic2, tint: "var(--mint-deep)", soft: "var(--mint-soft)" },
-          { label: "黑名单", val: blist.length, kind: "num", sub: "条私有规则", icon: Database, tint: "var(--coral)", soft: "var(--coral-soft)" },
+          { label: "家庭成员", val: users.total, kind: "num", sub: "在管账号", icon: Users, tint: "var(--indigo)", soft: "var(--indigo-soft)" },
+          { label: "录音数据", val: recordings.total, kind: "num", sub: "条已留样", icon: Mic2, tint: "var(--mint-deep)", soft: "var(--mint-soft)" },
+          { label: "黑名单", val: blist.total, kind: "num", sub: "条私有规则", icon: Database, tint: "var(--coral)", soft: "var(--coral-soft)" },
           { label: "当前风控", val: "L3", kind: "text", sub: "弹窗预警级别", icon: Sliders, tint: "var(--amber-deep)", soft: "var(--amber-soft)" },
         ].map((k) => (
           <div key={k.label} className="panel panel-lift p-5 relative overflow-hidden">

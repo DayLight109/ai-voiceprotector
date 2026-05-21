@@ -6,27 +6,46 @@ import DataTable from "@/components/shared/DataTable";
 import Modal from "@/components/shared/Modal";
 import { useToast } from "@/components/shared/Toast";
 import { SYSADMIN_NAV } from "@/lib/nav";
-import { SEED, type KnowledgeArticle } from "@/lib/mock";
-import { useLocalStorage, uid } from "@/lib/storage";
+import { type KnowledgeArticle } from "@/lib/mock";
+import { api, APIError } from "@/lib/api";
+import { useResource } from "@/lib/use-resource";
 import { Plus, Trash2, Edit3, BookMarked } from "lucide-react";
 
 export default function SysKnowledgePage() {
   const toast = useToast();
-  const [list, setList] = useLocalStorage<KnowledgeArticle[]>("knowledge", SEED.knowledge);
+  const list = useResource<KnowledgeArticle>(() => api.knowledge.list({ pageSize: 100 }));
   const [editing, setEditing] = useState<KnowledgeArticle | null>(null);
   const [open, setOpen] = useState(false);
 
-  const onSubmit = (f: any) => {
-    if (editing) {
-      setList((p) => p.map((x) => (x.id === editing.id ? { ...editing, ...f, updatedAt: new Date().toISOString().slice(0, 10) } : x)));
-      toast("success", "已更新");
-    } else {
-      const entry: KnowledgeArticle = { id: uid("k"), title: f.title, category: f.category, summary: f.summary, body: f.body, views: 0, updatedAt: new Date().toISOString().slice(0, 10) };
-      setList((p) => [entry, ...p]);
-      toast("success", "已发布");
+  const onSubmit = async (f: any) => {
+    try {
+      if (editing) {
+        await api.knowledge.update(editing.id, {
+          title: f.title, category: f.category, summary: f.summary, body: f.body,
+        });
+        toast("success", "已更新");
+      } else {
+        await api.knowledge.create({
+          title: f.title, category: f.category, summary: f.summary, body: f.body,
+        });
+        toast("success", "已发布");
+      }
+      setOpen(false);
+      setEditing(null);
+      list.refresh();
+    } catch (e) {
+      toast("error", e instanceof APIError ? e.message : "保存失败");
     }
-    setOpen(false);
-    setEditing(null);
+  };
+
+  const onDelete = async (id: string) => {
+    try {
+      await api.knowledge.remove(id);
+      toast("success", "已删除");
+      list.refresh();
+    } catch (e) {
+      toast("error", e instanceof APIError ? e.message : "删除失败");
+    }
   };
 
   return (
@@ -43,8 +62,14 @@ export default function SysKnowledgePage() {
       />
 
       <div className="panel p-6">
+        {list.error && (
+          <div className="mb-4 px-4 py-3 rounded-2xl text-[13px] font-medium"
+               style={{ background: "var(--coral-soft)", color: "var(--coral-deep)", border: "1px solid var(--coral)" }}>
+            {list.error}
+          </div>
+        )}
         <DataTable<KnowledgeArticle>
-          rows={list}
+          rows={list.items}
           searchKeys={["title", "summary", "category"]}
           columns={[
             { key: "title", label: "标题", render: (r) => <span className="font-display font-extrabold">{r.title}</span> },
@@ -55,7 +80,7 @@ export default function SysKnowledgePage() {
           actions={(r) => (
             <div className="flex items-center gap-1 justify-end">
               <button onClick={() => { setEditing(r); setOpen(true); }} className="w-8 h-8 rounded-lg hover:bg-canvas-2 flex items-center justify-center"><Edit3 size={13} /></button>
-              <button onClick={() => { setList((p) => p.filter((x) => x.id !== r.id)); toast("success", "已删除"); }} className="w-8 h-8 rounded-lg hover:bg-coral-soft text-coral-deep flex items-center justify-center"><Trash2 size={13} /></button>
+              <button onClick={() => onDelete(r.id)} className="w-8 h-8 rounded-lg hover:bg-coral-soft text-coral-deep flex items-center justify-center"><Trash2 size={13} /></button>
             </div>
           )}
         />

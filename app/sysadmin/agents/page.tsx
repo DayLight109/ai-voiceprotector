@@ -1,17 +1,18 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import AppShell from "@/components/AppShell";
 import PageHeader from "@/components/shared/PageHeader";
 import FormRow from "@/components/shared/FormRow";
 import Toggle from "@/components/shared/Toggle";
 import { useToast } from "@/components/shared/Toast";
 import { SYSADMIN_NAV } from "@/lib/nav";
-import { useLocalStorage } from "@/lib/storage";
+import { api, APIError } from "@/lib/api";
 import { Bot, Save, Sparkles, MessageSquare, Cpu, Plus, Trash2 } from "lucide-react";
 
 type WhisperCfg = { model: "tiny" | "base" | "small" | "medium" | "large-v3"; language: string; vadFilter: boolean; beamSize: number; temperature: number };
 type QwenCfg = { model: string; endpoint: string; apiKey: string; temperature: number; topP: number; maxTokens: number; systemPrompt: string };
 
+const DEFAULT_DW: string[] = ["AI 合成可疑", "境外信令", "公检法冒充", "客服伪冒", "刷单返利"];
 const DEFAULT_W: WhisperCfg = { model: "large-v3", language: "zh", vadFilter: true, beamSize: 5, temperature: 0.0 };
 const DEFAULT_Q: QwenCfg = {
   model: "qwen-max",
@@ -26,11 +27,49 @@ const DEFAULT_Q: QwenCfg = {
 export default function AgentsPage() {
   const toast = useToast();
   const [tab, setTab] = useState<"display" | "whisper" | "qwen">("display");
-  const [displayWords, setDisplayWords] = useLocalStorage<string[]>("sys.displayWords", [
-    "AI 合成可疑", "境外信令", "公检法冒充", "客服伪冒", "刷单返利"
-  ]);
-  const [w, setW] = useLocalStorage<WhisperCfg>("sys.whisper", DEFAULT_W);
-  const [q, setQ] = useLocalStorage<QwenCfg>("sys.qwen", DEFAULT_Q);
+  const [displayWords, setDisplayWords] = useState<string[]>(DEFAULT_DW);
+  const [w, setW] = useState<WhisperCfg>(DEFAULT_W);
+  const [q, setQ] = useState<QwenCfg>(DEFAULT_Q);
+
+  useEffect(() => {
+    api.agents.getDisplayWords()
+      .then((v) => {
+        if (Array.isArray(v)) setDisplayWords(v);
+        else if (v && Array.isArray((v as any).value)) setDisplayWords((v as any).value);
+      })
+      .catch(() => {});
+    api.agents.getWhisper()
+      .then((v) => { if (v && typeof v === "object") setW({ ...DEFAULT_W, ...v }); })
+      .catch(() => {});
+    api.agents.getQwen()
+      .then((v) => { if (v && typeof v === "object") setQ({ ...DEFAULT_Q, ...v }); })
+      .catch(() => {});
+  }, []);
+
+  const saveDisplay = async () => {
+    try {
+      await api.agents.setDisplayWords(displayWords);
+      toast("success", "已保存显示词");
+    } catch (e) {
+      toast("error", e instanceof APIError ? e.message : "保存失败");
+    }
+  };
+  const saveWhisper = async () => {
+    try {
+      await api.agents.setWhisper(w);
+      toast("success", "已保存 Whisper 配置");
+    } catch (e) {
+      toast("error", e instanceof APIError ? e.message : "保存失败");
+    }
+  };
+  const saveQwen = async () => {
+    try {
+      await api.agents.setQwen(q);
+      toast("success", "已保存千问配置");
+    } catch (e) {
+      toast("error", e instanceof APIError ? e.message : "保存失败");
+    }
+  };
 
   return (
     <AppShell role="sysadmin" userName="陈安怡" nav={SYSADMIN_NAV} breadcrumb={["SENTINEL", "系统管理员", "智能体管理"]}>
@@ -83,7 +122,7 @@ export default function AgentsPage() {
             <Plus size={12} /> 添加词条 · {displayWords.length} / 12
           </button>
           <div className="mt-5 text-right">
-            <button onClick={() => toast("success", "已保存显示词")} className="btn-indigo py-2.5 px-5 text-[13px]"><Save size={14} /> 保存</button>
+            <button onClick={saveDisplay} className="btn-indigo py-2.5 px-5 text-[13px]"><Save size={14} /> 保存</button>
           </div>
         </div>
       )}
@@ -116,7 +155,7 @@ export default function AgentsPage() {
             <Toggle checked={w.vadFilter} onChange={(v) => setW({ ...w, vadFilter: v })} />
           </FormRow>
           <div className="mt-5 text-right">
-            <button onClick={() => toast("success", "已保存 Whisper 配置")} className="btn-indigo py-2.5 px-5 text-[13px]"><Save size={14} /> 保存</button>
+            <button onClick={saveWhisper} className="btn-indigo py-2.5 px-5 text-[13px]"><Save size={14} /> 保存</button>
           </div>
           <Style />
         </div>
@@ -152,7 +191,7 @@ export default function AgentsPage() {
             <textarea value={q.systemPrompt} onChange={(e) => setQ({ ...q, systemPrompt: e.target.value })} rows={4} className="ipt" />
           </Field>
           <div className="mt-5 text-right">
-            <button onClick={() => toast("success", "已保存千问配置")} className="btn-indigo py-2.5 px-5 text-[13px]"><Save size={14} /> 保存</button>
+            <button onClick={saveQwen} className="btn-indigo py-2.5 px-5 text-[13px]"><Save size={14} /> 保存</button>
           </div>
           <Style />
         </div>

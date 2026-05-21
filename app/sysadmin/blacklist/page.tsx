@@ -6,34 +6,61 @@ import DataTable from "@/components/shared/DataTable";
 import Modal from "@/components/shared/Modal";
 import { useToast } from "@/components/shared/Toast";
 import { SYSADMIN_NAV } from "@/lib/nav";
-import { SEED, type BlackEntry } from "@/lib/mock";
-import { useLocalStorage, uid, downloadBlob } from "@/lib/storage";
+import { type BlackEntry } from "@/lib/mock";
+import { downloadBlob } from "@/lib/storage";
+import { api, APIError } from "@/lib/api";
+import { useResource } from "@/lib/use-resource";
 import { Plus, Trash2, Edit3, Download } from "lucide-react";
 
 export default function SysBlacklistPage() {
   const toast = useToast();
-  const [list, setList] = useLocalStorage<BlackEntry[]>("sys.blacklist.global", SEED.blacklist);
+  const list = useResource<BlackEntry>(() => api.blacklist.list({ pageSize: 100 }));
   const [editing, setEditing] = useState<BlackEntry | null>(null);
   const [open, setOpen] = useState(false);
 
-  const onSubmit = (f: any) => {
-    if (editing) {
-      setList((p) => p.map((x) => (x.id === editing.id ? { ...editing, ...f, risk: Number(f.risk) } : x)));
-      toast("success", "已更新");
-    } else {
-      const entry: BlackEntry = { id: uid("b"), number: f.number, reason: f.reason, category: f.category, risk: Number(f.risk), source: "云端", createdAt: new Date().toLocaleString("zh-CN") };
-      setList((p) => [entry, ...p]);
-      toast("success", "已下发全网", f.number);
+  const onSubmit = async (f: any) => {
+    try {
+      if (editing) {
+        await api.blacklist.update(editing.id, {
+          number: f.number, reason: f.reason, category: f.category, risk: Number(f.risk),
+        });
+        toast("success", "已更新");
+      } else {
+        await api.blacklist.create({
+          number: f.number, reason: f.reason, category: f.category,
+          risk: Number(f.risk), source: "云端",
+          // 全局黑名单：后端要求 sysadmin 才能 Global=true
+          global: true,
+        } as any);
+        toast("success", "已下发全网", f.number);
+      }
+      setOpen(false);
+      setEditing(null);
+      list.refresh();
+    } catch (e) {
+      toast("error", e instanceof APIError ? e.message : "保存失败");
     }
-    setOpen(false);
-    setEditing(null);
   };
 
-  const exportAll = () => {
-    const head = "号码,类别,原因,风险分,来源,时间\n";
-    const body = list.map((r) => `${r.number},${r.category},${r.reason},${r.risk},${r.source},${r.createdAt}`).join("\n");
-    downloadBlob(`global-blacklist-${Date.now()}.csv`, "﻿" + head + body, "text/csv;charset=utf-8");
-    toast("success", "已导出全网黑名单");
+  const onDelete = async (id: string, number: string) => {
+    try {
+      await api.blacklist.remove(id);
+      toast("success", "已移除", number);
+      list.refresh();
+    } catch (e) {
+      toast("error", e instanceof APIError ? e.message : "删除失败");
+    }
+  };
+
+  const exportAll = async () => {
+    try {
+      const blob = await api.blacklist.exportCSV();
+      const ab = await blob.arrayBuffer();
+      downloadBlob(`global-blacklist-${Date.now()}.csv`, ab, "text/csv;charset=utf-8");
+      toast("success", "已导出全网黑名单");
+    } catch (e) {
+      toast("error", e instanceof APIError ? e.message : "导出失败");
+    }
   };
 
   return (
@@ -51,8 +78,14 @@ export default function SysBlacklistPage() {
       />
 
       <div className="panel p-6">
+        {list.error && (
+          <div className="mb-4 px-4 py-3 rounded-2xl text-[13px] font-medium"
+               style={{ background: "var(--coral-soft)", color: "var(--coral-deep)", border: "1px solid var(--coral)" }}>
+            {list.error}
+          </div>
+        )}
         <DataTable<BlackEntry>
-          rows={list}
+          rows={list.items}
           searchKeys={["number", "reason", "category"]}
           columns={[
             { key: "number", label: "号码", render: (r) => <span className="font-mono font-bold">{r.number}</span> },
@@ -65,7 +98,7 @@ export default function SysBlacklistPage() {
           actions={(r) => (
             <div className="flex items-center gap-1 justify-end">
               <button onClick={() => { setEditing(r); setOpen(true); }} className="w-8 h-8 rounded-lg hover:bg-canvas-2 flex items-center justify-center"><Edit3 size={13} /></button>
-              <button onClick={() => { setList((p) => p.filter((x) => x.id !== r.id)); toast("success", "已移除"); }} className="w-8 h-8 rounded-lg hover:bg-coral-soft text-coral-deep flex items-center justify-center"><Trash2 size={13} /></button>
+              <button onClick={() => onDelete(r.id, r.number)} className="w-8 h-8 rounded-lg hover:bg-coral-soft text-coral-deep flex items-center justify-center"><Trash2 size={13} /></button>
             </div>
           )}
         />
@@ -86,6 +119,32 @@ export default function SysBlacklistPage() {
         <GBForm editing={editing} onSubmit={onSubmit} />
       </Modal>
     </AppShell>
+  );
+}
+
+function GBForm({ editing, onSubmit }: { editing: BlackEntry | null; onSubmit: (f: any) => void }) {
+  const [f, setF] = useState<any>(editing ?? { number: "", reason: "", category: "AI合成", risk: 85 });
+  return (
+    <form id="gb-form" onSubmit={(e) => { e.preventDefault(); onSubmit(f); }} className="space-y-4">
+      <Field label="号码"><input required value={f.number} onChange={(e) => setF({ ...f, number: e.target.value })} className="ipt" /></Field>
+      <Field label="类别">
+        <select value={f.category} onChange={(e) => setF({ ...f, category: e.target.value })} className="ipt">
+          {["AI合成", "话术诈骗", "号码伪冒", "其他"].map((c) => <option key={c}>{c}</option>)}
+        </select>
+      </Field>
+      <Field label="原因"><input value={f.reason} onChange={(e) => setF({ ...f, reason: e.target.value })} className="ipt" /></Field>
+      <Field label="风险分"><input type="number" min={0} max={100} value={f.risk} onChange={(e) => setF({ ...f, risk: e.target.value })} className="ipt" /></Field>
+      <style>{`.ipt{width:100%;padding:12px 14px;border-radius:14px;border:1px solid var(--border);background:var(--surface);font-size:13px;font-weight:500}.ipt:focus{outline:none;border-color:var(--indigo);box-shadow:0 0 0 3px color-mix(in srgb, var(--indigo) 18%, transparent)}`}</style>
+    </form>
+  );
+}
+
+function Field({ label, children }: any) {
+  return (
+    <div>
+      <label className="font-mono text-[10px] uppercase tracking-[0.14em] text-ink-soft font-bold block mb-1.5">{label}</label>
+      {children}
+    </div>
   );
 }
 

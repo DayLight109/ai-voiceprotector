@@ -5,44 +5,47 @@ import PageHeader from "@/components/shared/PageHeader";
 import DataTable from "@/components/shared/DataTable";
 import { useToast } from "@/components/shared/Toast";
 import { BIZ_NAV } from "@/lib/nav";
-import { SEED, type Appeal } from "@/lib/mock";
-import { useLocalStorage, uid } from "@/lib/storage";
+import { type Appeal } from "@/lib/mock";
+import { api, APIError } from "@/lib/api";
+import { useResource } from "@/lib/use-resource";
 import { MessageSquareWarning, Flag, Clock, CheckCircle2, XCircle, Send } from "lucide-react";
 
 type FormType = "误判申诉" | "号码举报";
 
 export default function BizAppealPage() {
   const toast = useToast();
-  const [list, setList] = useLocalStorage<Appeal[]>("biz.appeals", SEED.appeals);
+  const list = useResource<Appeal>(() => api.appeals.list({ pageSize: 100 }));
   const [type, setType] = useState<FormType>("误判申诉");
   const [number, setNumber] = useState("");
   const [reason, setReason] = useState("");
 
-  const submit = (ev: React.FormEvent) => {
+  const submit = async (ev: React.FormEvent) => {
     ev.preventDefault();
     if (!number.trim() || !reason.trim()) {
       toast("error", "信息不完整", "请填写号码与详情");
       return;
     }
-    const entry: Appeal = {
-      id: uid("ap"),
-      type,
-      number: number.trim(),
-      reason: reason.trim(),
-      status: "处理中",
-      createdAt: new Date().toLocaleString("zh-CN"),
-    };
-    setList((p) => [entry, ...p]);
-    toast("success", "已提交", `${type} #${entry.id.slice(-4)}`);
-    setNumber("");
-    setReason("");
+    try {
+      const created = await api.appeals.create({
+        type,
+        number: number.trim(),
+        reason: reason.trim(),
+        status: "处理中",
+      });
+      toast("success", "已提交", `${type} #${(created?.id ?? "").slice(-4)}`);
+      setNumber("");
+      setReason("");
+      list.refresh();
+    } catch (e) {
+      toast("error", e instanceof APIError ? e.message : "提交失败");
+    }
   };
 
   const stats = {
-    total: list.length,
-    pending: list.filter((a) => a.status === "处理中").length,
-    approved: list.filter((a) => a.status === "已通过").length,
-    rejected: list.filter((a) => a.status === "已驳回").length,
+    total: list.items.length,
+    pending: list.items.filter((a) => a.status === "处理中").length,
+    approved: list.items.filter((a) => a.status === "已通过").length,
+    rejected: list.items.filter((a) => a.status === "已驳回").length,
   };
 
   return (
@@ -110,7 +113,7 @@ export default function BizAppealPage() {
             <h2 className="font-display text-[20px] font-extrabold mt-1">历史申诉与举报</h2>
           </div>
           <DataTable<Appeal>
-            rows={list}
+            rows={list.items}
             searchKeys={["number", "reason", "type"]}
             columns={[
               { key: "type", label: "类型", render: (r) => <span className="tag-chip" data-tone={r.type === "误判申诉" ? "indigo" : "coral"}>{r.type}</span> },

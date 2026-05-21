@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import AppShell from "@/components/AppShell";
 import PageHeader from "@/components/shared/PageHeader";
 import DataTable from "@/components/shared/DataTable";
@@ -7,8 +7,9 @@ import FormRow from "@/components/shared/FormRow";
 import Toggle from "@/components/shared/Toggle";
 import { useToast } from "@/components/shared/Toast";
 import { FAMILY_ADMIN_NAV, ADMIN_NAV } from "@/lib/nav";
-import { SEED, type Recording } from "@/lib/mock";
-import { useLocalStorage } from "@/lib/storage";
+import { type Recording } from "@/lib/mock";
+import { api, APIError } from "@/lib/api";
+import { useResource } from "@/lib/use-resource";
 import { Mic2, Trash2, Play, Pause, Download } from "lucide-react";
 
 export default function FamilyRecordingsPage() {
@@ -18,9 +19,50 @@ export default function FamilyRecordingsPage() {
 export function RecordingsPage({ role }: { role: "family-admin" | "admin" }) {
   const isFam = role === "family-admin";
   const toast = useToast();
-  const [list, setList] = useLocalStorage<Recording[]>(isFam ? "family.recordings" : "admin.recordings", SEED.recordings);
-  const [uploadOn, setUploadOn] = useLocalStorage(isFam ? "family.recordingUpload" : "admin.recordingUpload", true);
+  const list = useResource<Recording>(() => api.recordings.list({ pageSize: 100 }));
+  const [uploadOn, setUploadOn] = useState<boolean>(true);
   const [playing, setPlaying] = useState<string | null>(null);
+
+  // 拉取录音策略
+  useEffect(() => {
+    let stop = false;
+    api.recordings.getPolicy()
+      .then((p) => { if (!stop) setUploadOn(!!p.uploadEnabled); })
+      .catch(() => {});
+    return () => { stop = true; };
+  }, []);
+
+  const onToggleUpload = async (next: boolean) => {
+    const prev = uploadOn;
+    setUploadOn(next);
+    try {
+      await api.recordings.setPolicy(next);
+      toast("success", next ? "已开启录音上传" : "已关闭录音上传");
+    } catch (e) {
+      setUploadOn(prev);
+      toast("error", e instanceof APIError ? e.message : "策略保存失败");
+    }
+  };
+
+  const onDownload = async (r: Recording) => {
+    try {
+      const { url } = await api.recordings.download(r.id);
+      window.open(url, "_blank");
+      toast("info", "已开始下载", r.phone);
+    } catch (e) {
+      toast("error", e instanceof APIError ? e.message : "下载失败");
+    }
+  };
+
+  const onDelete = async (r: Recording) => {
+    try {
+      await api.recordings.remove(r.id);
+      toast("success", "已删除录音");
+      list.refresh();
+    } catch (e) {
+      toast("error", e instanceof APIError ? e.message : "删除失败");
+    }
+  };
 
   return (
     <AppShell
@@ -37,8 +79,14 @@ export function RecordingsPage({ role }: { role: "family-admin" | "admin" }) {
 
       <div className="grid grid-cols-12 gap-5">
         <div className="col-span-12 lg:col-span-8 panel p-6">
+          {list.error && (
+            <div className="mb-4 px-4 py-3 rounded-2xl text-[13px] font-medium"
+                 style={{ background: "var(--coral-soft)", color: "var(--coral-deep)", border: "1px solid var(--coral)" }}>
+              {list.error}
+            </div>
+          )}
           <DataTable<Recording>
-            rows={list}
+            rows={list.items}
             searchKeys={["owner", "phone"]}
             columns={[
               { key: "owner", label: isFam ? "成员" : "线路" },
@@ -58,8 +106,8 @@ export function RecordingsPage({ role }: { role: "family-admin" | "admin" }) {
                 <button onClick={() => { setPlaying(playing === r.id ? null : r.id); toast("info", playing === r.id ? "已暂停" : "正在播放", r.phone); }} className="w-8 h-8 rounded-lg hover:bg-canvas-2 flex items-center justify-center">
                   {playing === r.id ? <Pause size={13} /> : <Play size={13} />}
                 </button>
-                <button onClick={() => toast("info", "已下载", r.phone)} className="w-8 h-8 rounded-lg hover:bg-canvas-2 flex items-center justify-center"><Download size={13} /></button>
-                <button onClick={() => { setList((p) => p.filter((x) => x.id !== r.id)); toast("success", "已删除录音"); }} className="w-8 h-8 rounded-lg hover:bg-coral-soft text-coral-deep flex items-center justify-center"><Trash2 size={13} /></button>
+                <button onClick={() => onDownload(r)} className="w-8 h-8 rounded-lg hover:bg-canvas-2 flex items-center justify-center"><Download size={13} /></button>
+                <button onClick={() => onDelete(r)} className="w-8 h-8 rounded-lg hover:bg-coral-soft text-coral-deep flex items-center justify-center"><Trash2 size={13} /></button>
               </div>
             )}
           />
@@ -74,7 +122,7 @@ export function RecordingsPage({ role }: { role: "family-admin" | "admin" }) {
               <div className="font-display text-[15px] font-extrabold">录音策略</div>
             </div>
             <FormRow label="是否上传录音" desc="开启后通话原文将加密回传至云端，便于跨设备审计；关闭则仅保留波形特征。">
-              <Toggle checked={uploadOn} onChange={setUploadOn} />
+              <Toggle checked={uploadOn} onChange={onToggleUpload} />
             </FormRow>
           </div>
 

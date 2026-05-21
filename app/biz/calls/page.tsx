@@ -7,12 +7,14 @@ import Modal from "@/components/shared/Modal";
 import FormRow from "@/components/shared/FormRow";
 import Toggle from "@/components/shared/Toggle";
 import { BIZ_NAV } from "@/lib/nav";
-import { SEED, type CallLog } from "@/lib/mock";
+import { type CallLog } from "@/lib/mock";
 import { useLocalStorage } from "@/lib/storage";
+import { api } from "@/lib/api";
+import { useResource } from "@/lib/use-resource";
 import { PhoneCall, ShieldAlert, Eye, Heart } from "lucide-react";
 
 export default function BizCallsPage() {
-  const [list] = useLocalStorage<CallLog[]>("biz.calls", SEED.callLogs);
+  const list = useResource<CallLog>(() => api.calls.list({ pageSize: 100 }));
   const [autoBlockHigh, setAutoBlockHigh] = useLocalStorage("biz.autoBlockHigh", true);
   const [careMode, setCareMode] = useLocalStorage("biz.careMode", false);
   const [active, setActive] = useState<CallLog | null>(null);
@@ -29,7 +31,7 @@ export default function BizCallsPage() {
         <div className="col-span-12 lg:col-span-8">
           <div className="panel p-6">
             <DataTable<CallLog>
-              rows={list}
+              rows={list.items}
               searchKeys={["phone", "region", "reason"]}
               columns={[
                 { key: "phone", label: "号码", render: (r) => <span className="font-mono font-bold">{r.phone}</span> },

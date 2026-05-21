@@ -2,7 +2,8 @@
 import { useState } from "react";
 import { useToast } from "@/components/shared/Toast";
 import Toggle from "@/components/shared/Toggle";
-import { useLocalStorage, uid } from "@/lib/storage";
+import { api, APIError } from "@/lib/api";
+import { useResource, useSingle } from "@/lib/use-resource";
 import { Plus, Trash2, Sliders } from "lucide-react";
 
 export type RiskRule = { id: string; level: 1 | 2 | 3 | 4 | 5; keyword: string; weight: number; enabled: boolean };
@@ -15,31 +16,48 @@ const LEVELS = [
   { k: 5, label: "L5 · 全域阻断", desc: "拉黑号段并联动运营商", color: "var(--coral-deep)", soft: "var(--coral-soft)" },
 ] as const;
 
-const DEFAULT_RULES: RiskRule[] = [
-  { id: "rr-1", level: 1, keyword: "推销保险", weight: 35, enabled: true },
-  { id: "rr-2", level: 2, keyword: "未知号码 · 长途", weight: 55, enabled: true },
-  { id: "rr-3", level: 3, keyword: "话术命中 · 紧迫", weight: 70, enabled: true },
-  { id: "rr-4", level: 4, keyword: "AI 合成 · 0.85+", weight: 88, enabled: true },
-  { id: "rr-5", level: 4, keyword: "公检法转账", weight: 92, enabled: true },
-  { id: "rr-6", level: 5, keyword: "境外信令 + AI 合成", weight: 96, enabled: true },
-];
-
-export default function RiskLevelEditor({ storageKey }: { storageKey: string }) {
+export default function RiskLevelEditor({ storageKey }: { storageKey?: string }) {
   const toast = useToast();
-  const [active, setActive] = useState<1 | 2 | 3 | 4 | 5>(3);
-  const [rules, setRules] = useLocalStorage<RiskRule[]>(storageKey, DEFAULT_RULES);
-  const view = rules.filter((r) => r.level === active);
+  const rules = useResource<RiskRule>(() => api.riskLevel.listRules({ pageSize: 100 }));
+  const state = useSingle(() => api.riskLevel.getState());
+  const active = (state.data?.activeLevel ?? 3) as 1 | 2 | 3 | 4 | 5;
+  const view = rules.items.filter((r) => r.level === active);
 
-  const addRule = () => {
-    const entry: RiskRule = { id: uid("rr"), level: active, keyword: "新规则", weight: 60, enabled: true };
-    setRules((p) => [...p, entry]);
-    toast("success", "已新增规则", `L${active}`);
+  const setActive = async (lvl: 1 | 2 | 3 | 4 | 5) => {
+    try {
+      await api.riskLevel.setState(lvl);
+      state.refresh();
+    } catch (e) {
+      toast("error", e instanceof APIError ? e.message : "切换失败");
+    }
   };
 
-  const update = (id: string, patch: Partial<RiskRule>) => setRules((p) => p.map((r) => (r.id === id ? { ...r, ...patch } : r)));
-  const remove = (id: string) => {
-    setRules((p) => p.filter((r) => r.id !== id));
-    toast("success", "已删除");
+  const addRule = async () => {
+    try {
+      await api.riskLevel.createRule({ level: active, keyword: "新规则", weight: 60, enabled: true });
+      toast("success", "已新增规则", `L${active}`);
+      rules.refresh();
+    } catch (e) {
+      toast("error", e instanceof APIError ? e.message : "新增失败");
+    }
+  };
+
+  const update = async (id: string, patch: Partial<RiskRule>) => {
+    try {
+      await api.riskLevel.updateRule(id, patch);
+      rules.refresh();
+    } catch (e) {
+      toast("error", e instanceof APIError ? e.message : "保存失败");
+    }
+  };
+  const remove = async (id: string) => {
+    try {
+      await api.riskLevel.removeRule(id);
+      toast("success", "已删除");
+      rules.refresh();
+    } catch (e) {
+      toast("error", e instanceof APIError ? e.message : "删除失败");
+    }
   };
 
   return (
@@ -63,7 +81,7 @@ export default function RiskLevelEditor({ storageKey }: { storageKey: string }) 
               </div>
               <div className="mt-1 text-[12px] font-medium" style={{ color: cur ? "var(--ink)" : "var(--ink-soft)" }}>{l.desc}</div>
               <div className="mt-3 numplate text-[20px]" style={{ color: l.color }}>
-                {rules.filter((r) => r.level === l.k).length}
+                {rules.items.filter((r) => r.level === l.k).length}
               </div>
             </button>
           );
@@ -90,40 +108,58 @@ export default function RiskLevelEditor({ storageKey }: { storageKey: string }) 
         ) : (
           <div className="space-y-2">
             {view.map((r) => (
-              <div key={r.id} className="grid grid-cols-12 gap-3 p-3 rounded-2xl hover:bg-canvas-2/60 border border-border">
-                <div className="col-span-12 md:col-span-6">
-                  <input
-                    value={r.keyword}
-                    onChange={(e) => update(r.id, { keyword: e.target.value })}
-                    className="w-full px-3 py-2 rounded-xl bg-surface border border-border text-[13px] font-medium focus:outline-none focus:border-indigo"
-                  />
-                </div>
-                <div className="col-span-6 md:col-span-3 flex items-center gap-2">
-                  <input
-                    type="number"
-                    min={0}
-                    max={100}
-                    value={r.weight}
-                    onChange={(e) => update(r.id, { weight: Number(e.target.value) })}
-                    className="w-20 px-3 py-2 rounded-xl bg-surface border border-border text-[13px] font-mono font-bold focus:outline-none focus:border-indigo"
-                  />
-                  <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-ink-soft font-bold">权重</span>
-                </div>
-                <div className="col-span-3 md:col-span-2 flex items-center gap-2">
-                  <Toggle checked={r.enabled} onChange={(v) => update(r.id, { enabled: v })} />
-                  <span className="font-mono text-[10px] uppercase tracking-[0.14em] font-bold" style={{ color: r.enabled ? "var(--mint-deep)" : "var(--ink-soft)" }}>
-                    {r.enabled ? "启用" : "停用"}
-                  </span>
-                </div>
-                <div className="col-span-3 md:col-span-1 flex items-center justify-end">
-                  <button onClick={() => remove(r.id)} className="w-8 h-8 rounded-lg hover:bg-coral-soft text-coral-deep flex items-center justify-center">
-                    <Trash2 size={13} />
-                  </button>
-                </div>
-              </div>
+              <RuleRow key={r.id} rule={r} onUpdate={update} onRemove={remove} />
             ))}
           </div>
         )}
+      </div>
+    </div>
+  );
+}
+
+function RuleRow({
+  rule,
+  onUpdate,
+  onRemove,
+}: {
+  rule: RiskRule;
+  onUpdate: (id: string, patch: Partial<RiskRule>) => void;
+  onRemove: (id: string) => void;
+}) {
+  const [keyword, setKeyword] = useState(rule.keyword);
+  const [weight, setWeight] = useState(rule.weight);
+  return (
+    <div className="grid grid-cols-12 gap-3 p-3 rounded-2xl hover:bg-canvas-2/60 border border-border">
+      <div className="col-span-12 md:col-span-6">
+        <input
+          value={keyword}
+          onChange={(e) => setKeyword(e.target.value)}
+          onBlur={() => { if (keyword !== rule.keyword) onUpdate(rule.id, { keyword }); }}
+          className="w-full px-3 py-2 rounded-xl bg-surface border border-border text-[13px] font-medium focus:outline-none focus:border-indigo"
+        />
+      </div>
+      <div className="col-span-6 md:col-span-3 flex items-center gap-2">
+        <input
+          type="number"
+          min={0}
+          max={100}
+          value={weight}
+          onChange={(e) => setWeight(Number(e.target.value))}
+          onBlur={() => { if (weight !== rule.weight) onUpdate(rule.id, { weight }); }}
+          className="w-20 px-3 py-2 rounded-xl bg-surface border border-border text-[13px] font-mono font-bold focus:outline-none focus:border-indigo"
+        />
+        <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-ink-soft font-bold">权重</span>
+      </div>
+      <div className="col-span-3 md:col-span-2 flex items-center gap-2">
+        <Toggle checked={rule.enabled} onChange={(v) => onUpdate(rule.id, { enabled: v })} />
+        <span className="font-mono text-[10px] uppercase tracking-[0.14em] font-bold" style={{ color: rule.enabled ? "var(--mint-deep)" : "var(--ink-soft)" }}>
+          {rule.enabled ? "启用" : "停用"}
+        </span>
+      </div>
+      <div className="col-span-3 md:col-span-1 flex items-center justify-end">
+        <button onClick={() => onRemove(rule.id)} className="w-8 h-8 rounded-lg hover:bg-coral-soft text-coral-deep flex items-center justify-center">
+          <Trash2 size={13} />
+        </button>
       </div>
     </div>
   );

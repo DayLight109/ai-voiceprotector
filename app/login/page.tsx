@@ -4,13 +4,20 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Mail, Lock, Building2, Home, Fingerprint, Smartphone, Eye, EyeOff, ArrowRight } from "lucide-react";
 import AuthShell from "@/components/AuthShell";
+import { useAuth, roleHomePath } from "@/lib/auth";
+import { APIError } from "@/lib/api";
 
 type Role = "enterprise" | "family";
 
 export default function LoginPage() {
   const router = useRouter();
+  const { login } = useAuth();
   const [role, setRole] = useState<Role>("family");
   const [show, setShow] = useState(false);
+  const [account, setAccount] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
 
   const content = role === "enterprise"
     ? {
@@ -33,6 +40,29 @@ export default function LoginPage() {
           "端侧推理，不上云、不留音，隐私守在本机",
         ],
       };
+
+  async function onSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setError(null);
+    if (!account.trim() || !password) {
+      setError("请输入账号和密码");
+      return;
+    }
+    setLoading(true);
+    try {
+      const user = await login(account.trim(), password);
+      // 跳转到用户真实角色的首页（忽略前端 role tab —— 后端 role 为准）
+      router.push(roleHomePath(user.role));
+    } catch (e) {
+      if (e instanceof APIError) {
+        setError(messageForAuthError(e));
+      } else {
+        setError("网络异常，请稍后再试");
+      }
+    } finally {
+      setLoading(false);
+    }
+  }
 
   return (
     <AuthShell
@@ -89,13 +119,7 @@ export default function LoginPage() {
         })}
       </div>
 
-      <form
-        className="space-y-4"
-        onSubmit={(e) => {
-          e.preventDefault();
-          router.push(role === "enterprise" ? "/biz" : "/app");
-        }}
-      >
+      <form className="space-y-4" onSubmit={onSubmit}>
         {/* 账号 */}
         <div>
           <label className="font-mono text-[10px] uppercase tracking-[0.14em] text-ink-soft font-bold">
@@ -105,7 +129,10 @@ export default function LoginPage() {
             <Mail size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-ink-soft" />
             <input
               type="text"
+              autoComplete="username"
               placeholder={content.acctPlaceholder}
+              value={account}
+              onChange={(e) => setAccount(e.target.value)}
               className="w-full pl-11 pr-4 py-3.5 rounded-2xl bg-surface border border-border font-body text-[14px] font-medium placeholder:text-ink-ghost focus:outline-none focus:border-indigo focus:ring-2 focus:ring-indigo/20 transition-all"
             />
           </div>
@@ -125,7 +152,10 @@ export default function LoginPage() {
             <Lock size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-ink-soft" />
             <input
               type={show ? "text" : "password"}
+              autoComplete="current-password"
               placeholder="••••••••"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
               className="w-full pl-11 pr-12 py-3.5 rounded-2xl bg-surface border border-border font-body text-[14px] font-medium placeholder:text-ink-ghost focus:outline-none focus:border-indigo focus:ring-2 focus:ring-indigo/20 transition-all"
             />
             <button
@@ -138,6 +168,21 @@ export default function LoginPage() {
           </div>
         </div>
 
+        {/* 错误提示 */}
+        {error && (
+          <div
+            role="alert"
+            className="px-4 py-3 rounded-2xl text-[13px] font-medium"
+            style={{
+              background: "var(--coral-soft)",
+              color: "var(--coral-deep)",
+              border: "1px solid var(--coral)",
+            }}
+          >
+            {error}
+          </div>
+        )}
+
         {/* 记住我 */}
         <label className="flex items-center gap-2 cursor-pointer">
           <input type="checkbox" className="w-4 h-4 rounded border-border accent-indigo" defaultChecked />
@@ -147,10 +192,11 @@ export default function LoginPage() {
         {/* 主按钮 */}
         <button
           type="submit"
-          className="btn-indigo w-full justify-center py-3.5 text-[14px]"
+          disabled={loading}
+          className="btn-indigo w-full justify-center py-3.5 text-[14px] disabled:opacity-60 disabled:cursor-not-allowed"
           style={{ width: "100%" }}
         >
-          登录 SENTINEL
+          {loading ? "登录中…" : "登录 SENTINEL"}
           <ArrowRight size={16} />
         </button>
 
@@ -217,4 +263,19 @@ export default function LoginPage() {
       </form>
     </AuthShell>
   );
+}
+
+function messageForAuthError(e: APIError): string {
+  switch (e.code) {
+    case "AUTH_INVALID_CREDENTIALS":
+      return "账号或密码错误";
+    case "AUTH_USER_SUSPENDED":
+      return "账号已被停用，请联系管理员";
+    case "VALIDATION_FAILED":
+      return e.message || "输入校验失败";
+    case "RATE_LIMITED":
+      return "登录尝试过于频繁，请稍后再试";
+    default:
+      return e.message || "登录失败，请稍后再试";
+  }
 }

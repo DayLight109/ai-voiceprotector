@@ -3,15 +3,16 @@ import AppShell from "@/components/AppShell";
 import PageHeader from "@/components/shared/PageHeader";
 import CountUp from "@/components/shared/CountUp";
 import { SYSADMIN_NAV } from "@/lib/nav";
-import { SEED } from "@/lib/mock";
-import { useLocalStorage } from "@/lib/storage";
+import { api } from "@/lib/api";
+import { useResource } from "@/lib/use-resource";
+import type { ScamRule, ScamSample, Device } from "@/lib/mock";
 import { ScrollText, BookMarked, Database, FlaskConical, Mic2, Bot, AlertOctagon, Server, HardDrive, ArrowUpRight, Activity, Cpu, AudioLines } from "lucide-react";
 import Link from "next/link";
 
 export default function SysAdminHome() {
-  const [rules] = useLocalStorage("sys.rules", SEED.rules);
-  const [samples] = useLocalStorage("sys.samples", SEED.samples);
-  const [devices] = useLocalStorage("sys.devices", SEED.devices);
+  const rules = useResource<ScamRule>(() => api.rules.list({ pageSize: 1 }));
+  const samples = useResource<ScamSample>(() => api.samples.list({ pageSize: 100, status: "待审核" }));
+  const devices = useResource<Device>(() => api.devices.list({ pageSize: 100 }));
 
   return (
     <AppShell role="sysadmin" userName="陈安怡" nav={SYSADMIN_NAV} breadcrumb={["SENTINEL", "系统管理员", "总览"]}>
@@ -28,9 +29,9 @@ export default function SysAdminHome() {
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
         {[
-          { label: "判定规则", num: rules.length, suffix: "", decimals: 0, sub: "条诈骗关键词", icon: ScrollText, tint: "var(--indigo)", soft: "var(--indigo-soft)" },
-          { label: "待审样本", num: samples.filter((s) => s.status === "待审核").length, suffix: "", decimals: 0, sub: "起需要复核", icon: FlaskConical, tint: "var(--coral)", soft: "var(--coral-soft)" },
-          { label: "在线设备", num: devices.filter((d) => d.status === "online").length, suffix: "", decimals: 0, sub: `/ ${devices.length} 总数`, icon: Server, tint: "var(--mint-deep)", soft: "var(--mint-soft)" },
+          { label: "判定规则", num: rules.total, suffix: "", decimals: 0, sub: "条诈骗关键词", icon: ScrollText, tint: "var(--indigo)", soft: "var(--indigo-soft)" },
+          { label: "待审样本", num: samples.items.filter((s) => s.status === "待审核").length, suffix: "", decimals: 0, sub: "起需要复核", icon: FlaskConical, tint: "var(--coral)", soft: "var(--coral-soft)" },
+          { label: "在线设备", num: devices.items.filter((d) => d.status === "online").length, suffix: "", decimals: 0, sub: `/ ${devices.total} 总数`, icon: Server, tint: "var(--mint-deep)", soft: "var(--mint-soft)" },
           { label: "声纹准确率", num: 99.24, suffix: "%", decimals: 2, sub: "voiceguard v2.6.1", icon: AudioLines, tint: "var(--amber-deep)", soft: "var(--amber-soft)" },
         ].map((k) => (
           <div key={k.label} className="panel panel-lift p-5 relative overflow-hidden">

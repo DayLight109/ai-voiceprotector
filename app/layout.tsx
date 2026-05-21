@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Nunito, JetBrains_Mono, Noto_Sans_SC } from "next/font/google";
 import "./globals.css";
+import { AuthProvider } from "@/lib/auth";
 
 const nunito = Nunito({
   subsets: ["latin"],
@@ -40,7 +41,9 @@ export default function RootLayout({
       lang="zh-CN"
       className={`${nunito.variable} ${jetbrains.variable} ${notoSans.variable}`}
     >
-      <body className="bg-canvas text-ink antialiased">{children}</body>
+      <body className="bg-canvas text-ink antialiased">
+        <AuthProvider>{children}</AuthProvider>
+      </body>
     </html>
   );
 }

@@ -6,8 +6,9 @@ import DataTable from "@/components/shared/DataTable";
 import Modal from "@/components/shared/Modal";
 import { useToast } from "@/components/shared/Toast";
 import { FAMILY_NAV } from "@/lib/nav";
-import { SEED, type BlackEntry, type WhiteEntry } from "@/lib/mock";
-import { useLocalStorage, uid } from "@/lib/storage";
+import { type BlackEntry, type WhiteEntry } from "@/lib/mock";
+import { api, APIError } from "@/lib/api";
+import { useResource } from "@/lib/use-resource";
 import { Plus, Trash2, Edit3, ShieldOff, ShieldCheck, ArrowDownAZ, Cloud, HardDrive, ScanLine } from "lucide-react";
 
 type Tab = "blacklist" | "whitelist";
@@ -15,64 +16,69 @@ type Tab = "blacklist" | "whitelist";
 export default function ProtectionPage() {
   const toast = useToast();
   const [tab, setTab] = useState<Tab>("blacklist");
-  const [blist, setBlist] = useLocalStorage<BlackEntry[]>("blacklist", SEED.blacklist);
-  const [wlist, setWlist] = useLocalStorage<WhiteEntry[]>("whitelist", SEED.whitelist);
+  const blist = useResource<BlackEntry>(() => api.blacklist.list({ pageSize: 100 }));
+  const wlist = useResource<WhiteEntry>(() => api.whitelist.list({ pageSize: 100 }));
   const [sortByRisk, setSortByRisk] = useState(true);
   const [scanMode, setScanMode] = useState<"local" | "cloud">("cloud");
   const [editing, setEditing] = useState<BlackEntry | WhiteEntry | null>(null);
   const [showAdd, setShowAdd] = useState(false);
 
   const blistView = useMemo(() => {
-    const s = [...blist];
+    const s = [...blist.items];
     if (sortByRisk) s.sort((a, b) => b.risk - a.risk);
     return s;
-  }, [blist, sortByRisk]);
+  }, [blist.items, sortByRisk]);
 
-  const onSave = (form: any) => {
-    if (tab === "blacklist") {
-      if (editing && "risk" in editing) {
-        setBlist((prev) => prev.map((x) => (x.id === editing.id ? { ...editing, ...form } : x)));
-        toast("success", "已更新", `黑名单条目 ${form.number}`);
+  const onSave = async (form: any) => {
+    try {
+      if (tab === "blacklist") {
+        if (editing && "risk" in editing) {
+          await api.blacklist.update(editing.id, {
+            number: form.number, reason: form.reason, category: form.category, risk: Number(form.risk),
+          });
+          toast("success", "已更新", `黑名单条目 ${form.number}`);
+        } else {
+          await api.blacklist.create({
+            number: form.number, reason: form.reason, category: form.category,
+            risk: Number(form.risk), source: "手动",
+          } as any);
+          toast("success", "已添加到黑名单", form.number);
+        }
+        blist.refresh();
       } else {
-        const entry: BlackEntry = {
-          id: uid("b"),
-          number: form.number,
-          reason: form.reason,
-          category: form.category,
-          risk: Number(form.risk),
-          source: "手动",
-          createdAt: new Date().toLocaleString("zh-CN"),
-        };
-        setBlist((prev) => [entry, ...prev]);
-        toast("success", "已添加到黑名单", form.number);
+        if (editing && "relation" in editing) {
+          await api.whitelist.update(editing.id, {
+            number: form.number, name: form.name, relation: form.relation,
+          });
+          toast("success", "已更新", `白名单条目 ${form.number}`);
+        } else {
+          await api.whitelist.create({
+            number: form.number, name: form.name, relation: form.relation,
+          } as any);
+          toast("success", "已添加到白名单", form.number);
+        }
+        wlist.refresh();
       }
-    } else {
-      if (editing && "relation" in editing) {
-        setWlist((prev) => prev.map((x) => (x.id === editing.id ? { ...editing, ...form } : x)));
-        toast("success", "已更新", `白名单条目 ${form.number}`);
-      } else {
-        const entry: WhiteEntry = {
-          id: uid("w"),
-          number: form.number,
-          name: form.name,
-          relation: form.relation,
-          createdAt: new Date().toLocaleString("zh-CN"),
-        };
-        setWlist((prev) => [entry, ...prev]);
-        toast("success", "已添加到白名单", form.number);
-      }
+      setShowAdd(false);
+      setEditing(null);
+    } catch (e) {
+      toast("error", e instanceof APIError ? e.message : "操作失败");
     }
-    setShowAdd(false);
-    setEditing(null);
   };
 
-  const onDelete = (id: string) => {
-    if (tab === "blacklist") {
-      setBlist((p) => p.filter((x) => x.id !== id));
-      toast("success", "已删除黑名单条目");
-    } else {
-      setWlist((p) => p.filter((x) => x.id !== id));
-      toast("success", "已删除白名单条目");
+  const onDelete = async (id: string) => {
+    try {
+      if (tab === "blacklist") {
+        await api.blacklist.remove(id);
+        toast("success", "已删除黑名单条目");
+        blist.refresh();
+      } else {
+        await api.whitelist.remove(id);
+        toast("success", "已删除白名单条目");
+        wlist.refresh();
+      }
+    } catch (e) {
+      toast("error", e instanceof APIError ? e.message : "操作失败");
     }
   };
 
@@ -173,8 +179,8 @@ export default function ProtectionPage() {
         <div className="flex items-center justify-between mb-5 flex-wrap gap-3">
           <div className="flex items-center gap-1 p-1 rounded-full bg-canvas-2 border border-border">
             {[
-              { k: "blacklist", label: `黑名单 · ${blist.length}`, icon: ShieldOff, tone: "coral" },
-              { k: "whitelist", label: `白名单 · ${wlist.length}`, icon: ShieldCheck, tone: "mint" },
+              { k: "blacklist", label: `黑名单 · ${blist.items.length}`, icon: ShieldOff, tone: "coral" },
+              { k: "whitelist", label: `白名单 · ${wlist.items.length}`, icon: ShieldCheck, tone: "mint" },
             ].map((t) => {
               const active = t.k === tab;
               return (
@@ -229,7 +235,7 @@ export default function ProtectionPage() {
         ) : (
           <div key="wl" className="fade-in">
           <DataTable<WhiteEntry>
-            rows={wlist}
+            rows={wlist.items}
             searchKeys={["number", "name", "relation"]}
             columns={[
               { key: "number", label: "号码", render: (r) => <span className="font-mono font-bold">{r.number}</span> },

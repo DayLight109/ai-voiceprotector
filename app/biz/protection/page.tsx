@@ -6,27 +6,34 @@ import DataTable from "@/components/shared/DataTable";
 import Modal from "@/components/shared/Modal";
 import { useToast } from "@/components/shared/Toast";
 import { BIZ_NAV } from "@/lib/nav";
-import { SEED, type BlackEntry, type WhiteEntry } from "@/lib/mock";
-import { useLocalStorage, uid } from "@/lib/storage";
+import { type BlackEntry, type WhiteEntry } from "@/lib/mock";
+import { api, APIError } from "@/lib/api";
+import { useResource } from "@/lib/use-resource";
 import { Plus, Trash2, Edit3, ShieldOff, ShieldCheck, ArrowDownAZ, Cloud, HardDrive, ScanLine, Building2 } from "lucide-react";
 
 export default function BizProtectionPage() {
   const toast = useToast();
   const [tab, setTab] = useState<"blacklist" | "whitelist">("blacklist");
-  const [blist, setBlist] = useLocalStorage<BlackEntry[]>("biz.blacklist", SEED.blacklist);
-  const [wlist, setWlist] = useLocalStorage<WhiteEntry[]>("biz.whitelist", SEED.whitelist);
+  const blist = useResource<BlackEntry>(() => api.blacklist.list({ pageSize: 100 }));
+  const wlist = useResource<WhiteEntry>(() => api.whitelist.list({ pageSize: 100 }));
   const [sortByRisk, setSortByRisk] = useState(true);
   const [scanMode, setScanMode] = useState<"local" | "cloud">("cloud");
 
-  const view = useMemo(() => sortByRisk ? [...blist].sort((a, b) => b.risk - a.risk) : blist, [blist, sortByRisk]);
+  const view = useMemo(() => sortByRisk ? [...blist.items].sort((a, b) => b.risk - a.risk) : blist.items, [blist.items, sortByRisk]);
 
-  const remove = (id: string) => {
-    if (tab === "blacklist") {
-      setBlist((p) => p.filter((x) => x.id !== id));
-      toast("success", "已从黑名单移除");
-    } else {
-      setWlist((p) => p.filter((x) => x.id !== id));
-      toast("success", "已从白名单移除");
+  const remove = async (id: string) => {
+    try {
+      if (tab === "blacklist") {
+        await api.blacklist.remove(id);
+        toast("success", "已从黑名单移除");
+        blist.refresh();
+      } else {
+        await api.whitelist.remove(id);
+        toast("success", "已从白名单移除");
+        wlist.refresh();
+      }
+    } catch (e) {
+      toast("error", e instanceof APIError ? e.message : "操作失败");
     }
   };
 
@@ -83,8 +90,8 @@ export default function BizProtectionPage() {
         <div className="flex items-center justify-between mb-5 flex-wrap gap-3">
           <div className="flex items-center gap-1 p-1 rounded-full bg-canvas-2 border border-border">
             {[
-              { k: "blacklist", label: `黑名单 · ${blist.length}`, icon: ShieldOff, tone: "coral" },
-              { k: "whitelist", label: `白名单 · ${wlist.length}`, icon: ShieldCheck, tone: "mint" },
+              { k: "blacklist", label: `黑名单 · ${blist.items.length}`, icon: ShieldOff, tone: "coral" },
+              { k: "whitelist", label: `白名单 · ${wlist.items.length}`, icon: ShieldCheck, tone: "mint" },
             ].map((t) => {
               const active = t.k === tab;
               return (
@@ -95,13 +102,24 @@ export default function BizProtectionPage() {
             })}
           </div>
           <button
-            onClick={() => {
-              if (tab === "blacklist") {
-                setBlist((p) => [{ id: uid("b"), number: "+86 000 0000 0000", reason: "新增条目", category: "其他", risk: 60, source: "手动", createdAt: new Date().toLocaleString("zh-CN") }, ...p]);
-                toast("success", "新增条目，请补全详情");
-              } else {
-                setWlist((p) => [{ id: uid("w"), number: "+86 000 0000 0000", name: "新增联系人", relation: "其他", createdAt: new Date().toLocaleString("zh-CN") }, ...p]);
-                toast("success", "新增条目，请补全详情");
+            onClick={async () => {
+              try {
+                if (tab === "blacklist") {
+                  await api.blacklist.create({
+                    number: "+86 000 0000 0000", reason: "新增条目", category: "其他",
+                    risk: 60, source: "手动",
+                  } as any);
+                  toast("success", "新增条目，请补全详情");
+                  blist.refresh();
+                } else {
+                  await api.whitelist.create({
+                    number: "+86 000 0000 0000", name: "新增联系人", relation: "其他",
+                  } as any);
+                  toast("success", "新增条目，请补全详情");
+                  wlist.refresh();
+                }
+              } catch (e) {
+                toast("error", e instanceof APIError ? e.message : "操作失败");
               }
             }}
             className="btn-indigo py-2 px-3 text-[12px]"
@@ -127,7 +145,7 @@ export default function BizProtectionPage() {
           />
         ) : (
           <DataTable<WhiteEntry>
-            rows={wlist}
+            rows={wlist.items}
             searchKeys={["number", "name", "relation"]}
             columns={[
               { key: "number", label: "号码", render: (r) => <span className="font-mono font-bold">{r.number}</span> },

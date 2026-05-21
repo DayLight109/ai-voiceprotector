@@ -5,43 +5,46 @@ import PageHeader from "@/components/shared/PageHeader";
 import Modal from "@/components/shared/Modal";
 import { useToast } from "@/components/shared/Toast";
 import { SYSADMIN_NAV } from "@/lib/nav";
-import { SEED, type ScamSample } from "@/lib/mock";
-import { useLocalStorage, downloadBlob } from "@/lib/storage";
+import { type ScamSample } from "@/lib/mock";
+import { downloadBlob } from "@/lib/storage";
+import { api, APIError } from "@/lib/api";
+import { useResource } from "@/lib/use-resource";
 import { FlaskConical, FileDown, Sparkles, CheckCircle2, XCircle, Eye } from "lucide-react";
 
 export default function SamplesPage() {
   const toast = useToast();
-  const [list, setList] = useLocalStorage<ScamSample[]>("sys.samples", SEED.samples);
+  const list = useResource<ScamSample>(() => api.samples.list({ pageSize: 100 }));
   const [active, setActive] = useState<ScamSample | null>(null);
 
-  const exportWord = (s: ScamSample) => {
-    const html = `
-      <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40">
-      <head><meta charset="utf-8"><title>诈骗样本 · ${s.callId}</title></head>
-      <body style="font-family:'Microsoft YaHei',sans-serif;">
-        <h2>诈骗样本 · ${s.callId}</h2>
-        <table border="1" cellpadding="8" cellspacing="0" style="border-collapse:collapse;width:100%">
-          <tr><td><b>来源地区</b></td><td>${s.origin}</td></tr>
-          <tr><td><b>时长</b></td><td>${s.duration}</td></tr>
-          <tr><td><b>类型分类</b></td><td>${s.classification}</td></tr>
-          <tr><td><b>审核状态</b></td><td>${s.status}</td></tr>
-          <tr><td><b>接收时间</b></td><td>${s.receivedAt}</td></tr>
-        </table>
-        <h3>通话文字转写</h3>
-        <p>${s.transcript}</p>
-      </body></html>`;
-    downloadBlob(`${s.callId}.doc`, html, "application/msword");
-    toast("success", "已导出 Word", s.callId);
+  const exportWord = async (s: ScamSample) => {
+    try {
+      const blob = await api.samples.exportDoc(s.id);
+      const ab = await blob.arrayBuffer();
+      downloadBlob(`${s.callId}.doc`, ab, "application/msword");
+      toast("success", "已导出 Word", s.callId);
+    } catch (e) {
+      toast("error", e instanceof APIError ? e.message : "导出失败");
+    }
   };
 
-  const analyze = (s: ScamSample) => {
-    toast("success", "样本已分析", "话术规则库 + 反诈知识库已自动追加 2 条");
-    setList((p) => p.map((x) => (x.id === s.id ? { ...x, status: "已审核" } : x)));
+  const analyze = async (s: ScamSample) => {
+    try {
+      const result = await api.samples.analyze(s.id);
+      toast("success", "样本已分析", result?.classification || "");
+      list.refresh();
+    } catch (e) {
+      toast("error", e instanceof APIError ? e.message : "分析失败");
+    }
   };
 
-  const reject = (s: ScamSample) => {
-    setList((p) => p.map((x) => (x.id === s.id ? { ...x, status: "已驳回" } : x)));
-    toast("info", "已驳回");
+  const reject = async (s: ScamSample) => {
+    try {
+      await api.samples.reject(s.id);
+      toast("info", "已驳回");
+      list.refresh();
+    } catch (e) {
+      toast("error", e instanceof APIError ? e.message : "驳回失败");
+    }
   };
 
   return (
@@ -53,7 +56,7 @@ export default function SamplesPage() {
       />
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {list.map((s) => (
+        {list.items.map((s) => (
           <div key={s.id} className="panel panel-lift p-5">
             <div className="flex items-center justify-between mb-3">
               <span className="font-mono text-[10px] uppercase tracking-[0.14em] font-bold" style={{ color: "var(--ink-soft)" }}>

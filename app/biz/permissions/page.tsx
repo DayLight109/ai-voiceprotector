@@ -1,11 +1,14 @@
 "use client";
+import { useMemo } from "react";
 import AppShell from "@/components/AppShell";
 import PageHeader from "@/components/shared/PageHeader";
 import FormRow from "@/components/shared/FormRow";
 import Toggle from "@/components/shared/Toggle";
 import { useToast } from "@/components/shared/Toast";
 import { BIZ_NAV } from "@/lib/nav";
-import { useLocalStorage } from "@/lib/storage";
+import { api, APIError } from "@/lib/api";
+import { useSingle } from "@/lib/use-resource";
+import { useAuth } from "@/lib/auth";
 import { Bell, Smartphone, PhoneCall, Heart, ListChecks, Eye, ShieldAlert } from "lucide-react";
 
 type Perms = {
@@ -23,12 +26,41 @@ const DEFAULT: Perms = {
   viewHistory: true, apiAccess: true, webhookEvents: true, workdayMute: false,
 };
 
+const PERM_KEYS = Object.keys(DEFAULT) as (keyof Perms)[];
+
 export default function BizPermsPage() {
   const toast = useToast();
-  const [p, setP] = useLocalStorage<Perms>("perms.biz", DEFAULT);
-  const upd = <K extends keyof Perms>(k: K, v: Perms[K]) => {
-    setP({ ...p, [k]: v });
-    toast("info", "已更新", k);
+  const { user } = useAuth();
+  const permsRes = useSingle<any[]>(() => api.permissions.getBiz());
+
+  const p = useMemo<Perms>(() => {
+    const m: Perms = { ...DEFAULT };
+    for (const it of permsRes.data || []) {
+      if (it?.key && it.key in m) (m as any)[it.key] = !!it.enabled;
+    }
+    return m;
+  }, [permsRes.data]);
+
+  const upd = async <K extends keyof Perms>(k: K, v: Perms[K]) => {
+    if (!user?.id) {
+      toast("error", "未登录");
+      return;
+    }
+    try {
+      const items = PERM_KEYS.map((key) => ({
+        key,
+        enabled: key === k ? (v as boolean) : p[key],
+      }));
+      await api.permissions.setBiz(user.id, items);
+      toast("info", "已更新", k);
+      permsRes.refresh();
+    } catch (e) {
+      if (e instanceof APIError && e.status === 403) {
+        toast("error", "权限不足", "仅企业管理员可改");
+      } else {
+        toast("error", e instanceof APIError ? e.message : "保存失败");
+      }
+    }
   };
 
   return (

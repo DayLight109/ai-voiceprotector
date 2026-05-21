@@ -7,8 +7,10 @@ import UploadZone from "@/components/shared/UploadZone";
 import Modal from "@/components/shared/Modal";
 import { useToast } from "@/components/shared/Toast";
 import { FAMILY_ADMIN_NAV, ADMIN_NAV } from "@/lib/nav";
-import { SEED, type BlackEntry } from "@/lib/mock";
-import { useLocalStorage, uid, downloadBlob } from "@/lib/storage";
+import { type BlackEntry } from "@/lib/mock";
+import { downloadBlob } from "@/lib/storage";
+import { api, APIError } from "@/lib/api";
+import { useResource } from "@/lib/use-resource";
 import { Plus, Trash2, Edit3, Database, FileSpreadsheet, Download } from "lucide-react";
 
 export default function FamilyBlacklistPage() {
@@ -18,46 +20,62 @@ export default function FamilyBlacklistPage() {
 export function BlacklistAdminPage({ role }: { role: "family-admin" | "admin" }) {
   const isFam = role === "family-admin";
   const toast = useToast();
-  const [list, setList] = useLocalStorage<BlackEntry[]>(isFam ? "family.blacklist" : "admin.blacklist", SEED.blacklist);
+  const list = useResource<BlackEntry>(() => api.blacklist.list({ pageSize: 100 }));
   const [editing, setEditing] = useState<BlackEntry | null>(null);
   const [open, setOpen] = useState(false);
   const [uploads, setUploads] = useState<{ name: string; size: number; lines: number }[]>([]);
 
-  const onSubmit = (form: any) => {
-    if (editing) {
-      setList((p) => p.map((x) => (x.id === editing.id ? { ...editing, ...form, risk: Number(form.risk) } : x)));
-      toast("success", "已更新");
-    } else {
-      const entry: BlackEntry = { id: uid("b"), number: form.number, reason: form.reason, category: form.category, risk: Number(form.risk), source: "手动", createdAt: new Date().toLocaleString("zh-CN") };
-      setList((p) => [entry, ...p]);
-      toast("success", "已新增", form.number);
+  const onSubmit = async (form: any) => {
+    try {
+      if (editing) {
+        await api.blacklist.update(editing.id, {
+          number: form.number, reason: form.reason, category: form.category, risk: Number(form.risk),
+        });
+        toast("success", "已更新");
+      } else {
+        await api.blacklist.create({
+          number: form.number, reason: form.reason, category: form.category,
+          risk: Number(form.risk), source: "手动",
+        } as any);
+        toast("success", "已新增", form.number);
+      }
+      setOpen(false);
+      setEditing(null);
+      list.refresh();
+    } catch (e) {
+      toast("error", e instanceof APIError ? e.message : "保存失败");
     }
-    setOpen(false);
-    setEditing(null);
   };
 
-  const onUpload = (files: { name: string; size: number; lines: number }[]) => {
+  const onUpload = async (files: { name: string; size: number; lines: number }[]) => {
     setUploads((p) => [...p, ...files]);
-    const extra: BlackEntry[] = files.flatMap((f) =>
-      Array.from({ length: Math.min(4, Math.max(2, Math.floor(f.lines / 10))) }).map((_, i) => ({
-        id: uid("b"),
+    const extra: Partial<BlackEntry>[] = files.flatMap((f) =>
+      Array.from({ length: Math.min(4, Math.max(2, Math.floor(f.lines / 10))) }).map(() => ({
         number: `+86 ${String(Math.floor(Math.random() * 900) + 100)} ${String(Math.floor(Math.random() * 9000) + 1000)} ${String(Math.floor(Math.random() * 9000) + 1000)}`,
         reason: `从 ${f.name} 导入`,
         category: "其他" as const,
         risk: 70 + Math.floor(Math.random() * 25),
         source: "手动" as const,
-        createdAt: new Date().toLocaleString("zh-CN"),
       }))
     );
-    setList((p) => [...extra, ...p]);
-    toast("success", `已导入 ${files.length} 个文件`, `合计 ${extra.length} 条`);
+    try {
+      const res = await api.blacklist.importJSON(extra);
+      toast("success", `已导入 ${files.length} 个文件`, `合计 ${res.imported} 条`);
+      list.refresh();
+    } catch (e) {
+      toast("error", e instanceof APIError ? e.message : "导入失败");
+    }
   };
 
-  const exportCsv = () => {
-    const head = "号码,类别,原因,风险分,来源,时间\n";
-    const body = list.map((r) => `${r.number},${r.category},${r.reason},${r.risk},${r.source},${r.createdAt}`).join("\n");
-    downloadBlob(`blacklist-${Date.now()}.csv`, "﻿" + head + body, "text/csv;charset=utf-8");
-    toast("success", "已导出 CSV");
+  const exportCsv = async () => {
+    try {
+      const blob = await api.blacklist.exportCSV();
+      const ab = await blob.arrayBuffer();
+      downloadBlob(`blacklist-${Date.now()}.csv`, ab, "text/csv;charset=utf-8");
+      toast("success", "已导出 CSV");
+    } catch (e) {
+      toast("error", e instanceof APIError ? e.message : "导出失败");
+    }
   };
 
   return (
@@ -82,7 +100,7 @@ export function BlacklistAdminPage({ role }: { role: "family-admin" | "admin" })
       <div className="grid grid-cols-12 gap-5">
         <div className="col-span-12 lg:col-span-8 panel p-6">
           <DataTable<BlackEntry>
-            rows={list}
+            rows={list.items}
             searchKeys={["number", "reason", "category"]}
             columns={[
               { key: "number", label: "号码", render: (r) => <span className="font-mono font-bold">{r.number}</span> },
@@ -94,7 +112,7 @@ export function BlacklistAdminPage({ role }: { role: "family-admin" | "admin" })
             actions={(r) => (
               <div className="flex items-center gap-1 justify-end">
                 <button onClick={() => { setEditing(r); setOpen(true); }} className="w-8 h-8 rounded-lg hover:bg-canvas-2 flex items-center justify-center"><Edit3 size={13} /></button>
-                <button onClick={() => { setList((p) => p.filter((x) => x.id !== r.id)); toast("success", "已删除"); }} className="w-8 h-8 rounded-lg hover:bg-coral-soft text-coral-deep flex items-center justify-center"><Trash2 size={13} /></button>
+                <button onClick={async () => { try { await api.blacklist.remove(r.id); toast("success", "已删除"); list.refresh(); } catch (e) { toast("error", e instanceof APIError ? e.message : "删除失败"); } }} className="w-8 h-8 rounded-lg hover:bg-coral-soft text-coral-deep flex items-center justify-center"><Trash2 size={13} /></button>
               </div>
             )}
           />

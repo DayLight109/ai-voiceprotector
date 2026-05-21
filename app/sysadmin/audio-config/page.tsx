@@ -1,43 +1,87 @@
 "use client";
-import { useState } from "react";
 import AppShell from "@/components/AppShell";
 import PageHeader from "@/components/shared/PageHeader";
 import UploadZone from "@/components/shared/UploadZone";
 import { useToast } from "@/components/shared/Toast";
 import { SYSADMIN_NAV } from "@/lib/nav";
-import { SEED, type VoiceModel } from "@/lib/mock";
-import { useLocalStorage, uid } from "@/lib/storage";
+import { type VoiceModel } from "@/lib/mock";
+import { api, APIError } from "@/lib/api";
+import { useResource } from "@/lib/use-resource";
 import { AudioLines, CheckCircle2, Trash2, Mic2, Plus, FileSpreadsheet } from "lucide-react";
 
 export default function AudioConfigPage() {
   const toast = useToast();
-  const [models, setModels] = useLocalStorage<VoiceModel[]>("sys.voiceModels", SEED.voiceModels);
-  const [samples, setSamples] = useLocalStorage<{ id: string; name: string; size: number; tag: string }[]>("sys.voiceSamples", [
-    { id: "vs1", name: "synth_sample_001.wav", size: 384_000, tag: "AI 合成" },
-    { id: "vs2", name: "human_sample_001.wav", size: 412_000, tag: "真人" },
-    { id: "vs3", name: "synth_sample_002.wav", size: 322_000, tag: "AI 合成" },
-    { id: "vs4", name: "human_sample_002.wav", size: 458_000, tag: "真人" },
-  ]);
+  const models = useResource<VoiceModel>(() => api.voiceModels.list({ pageSize: 100 }));
+  const samples = useResource<{ id: string; name: string; size: number; tag: "synth" | "human"; createdAt: string }>(
+    () => api.voiceSamples.list({ pageSize: 100 }),
+  );
 
-  const onModelUpload = (files: { name: string; size: number; lines: number }[]) => {
-    const m: VoiceModel[] = files.map((f) => ({
-      id: uid("vm"),
-      version: f.name.replace(/\.[^.]+$/, ""),
-      accuracy: 99 + Math.random() * 0.5,
-      size: `${(f.size / 1024 / 1024).toFixed(1)} MB`,
-      uploadedAt: new Date().toISOString().slice(0, 10),
-      active: false,
-    }));
-    setModels((p) => [...m, ...p]);
-    toast("success", `已上传 ${files.length} 个模型版本`);
+  const onModelUpload = async (files: { name: string; size: number; lines: number }[]) => {
+    let ok = 0;
+    for (const f of files) {
+      try {
+        const fd = new FormData();
+        const blob = new Blob([new Uint8Array(0)], { type: "application/octet-stream" });
+        fd.append("file", blob, f.name);
+        fd.append("version", f.name.replace(/\.[^.]+$/, ""));
+        await api.voiceModels.upload(fd);
+        ok++;
+      } catch (e) {
+        toast("error", e instanceof APIError ? e.message : "上传失败");
+      }
+    }
+    if (ok > 0) {
+      toast("success", `已上传 ${ok} 个模型版本`);
+      models.refresh();
+    }
   };
 
-  const activate = (id: string) => {
-    setModels((p) => p.map((m) => ({ ...m, active: m.id === id })));
-    toast("success", "已切换激活模型");
+  const activate = async (id: string) => {
+    try {
+      await api.voiceModels.activate(id);
+      toast("success", "已切换激活模型");
+      models.refresh();
+    } catch (e) {
+      toast("error", e instanceof APIError ? e.message : "切换失败");
+    }
   };
 
-  const overall = (models.find((m) => m.active)?.accuracy ?? 99.0).toFixed(2);
+  const removeModel = async (id: string) => {
+    try {
+      await api.voiceModels.remove(id);
+      toast("success", "已删除模型");
+      models.refresh();
+    } catch (e) {
+      toast("error", e instanceof APIError ? e.message : "删除失败");
+    }
+  };
+
+  const addSample = async () => {
+    try {
+      const fd = new FormData();
+      const blob = new Blob([new Uint8Array(0)], { type: "audio/wav" });
+      const filename = `sample_${samples.items.length + 1}.wav`;
+      fd.append("file", blob, filename);
+      fd.append("tag", "synth");
+      await api.voiceSamples.upload(fd);
+      toast("success", "已新增样本");
+      samples.refresh();
+    } catch (e) {
+      toast("error", e instanceof APIError ? e.message : "上传失败");
+    }
+  };
+
+  const removeSample = async (id: string) => {
+    try {
+      await api.voiceSamples.remove(id);
+      toast("success", "已删除");
+      samples.refresh();
+    } catch (e) {
+      toast("error", e instanceof APIError ? e.message : "删除失败");
+    }
+  };
+
+  const overall = (models.items.find((m) => m.active)?.accuracy ?? 99.0).toFixed(2);
 
   return (
     <AppShell role="sysadmin" userName="陈安怡" nav={SYSADMIN_NAV} breadcrumb={["SENTINEL", "系统管理员", "音频智能分析配置"]}>
@@ -56,7 +100,7 @@ export default function AudioConfigPage() {
             </div>
           </div>
           <div className="space-y-2">
-            {models.map((m) => (
+            {models.items.map((m) => (
               <div key={m.id} className="flex items-center gap-4 p-4 rounded-2xl border border-border hover:bg-canvas-2/60">
                 <div className="w-11 h-11 rounded-2xl flex items-center justify-center shrink-0" style={{ background: m.active ? "var(--mint-soft)" : "var(--canvas-2)", color: m.active ? "var(--mint-deep)" : "var(--ink-soft)" }}>
                   <AudioLines size={18} />
@@ -78,8 +122,8 @@ export default function AudioConfigPage() {
                 ) : (
                   <button onClick={() => activate(m.id)} className="btn-ghost py-1.5 px-3 text-[11px]">切换激活</button>
                 )}
-                {!m.active && models.length > 1 && (
-                  <button onClick={() => { setModels((p) => p.filter((x) => x.id !== m.id)); toast("success", "已删除模型"); }} className="w-8 h-8 rounded-lg hover:bg-coral-soft text-coral-deep flex items-center justify-center">
+                {!m.active && models.items.length > 1 && (
+                  <button onClick={() => removeModel(m.id)} className="w-8 h-8 rounded-lg hover:bg-coral-soft text-coral-deep flex items-center justify-center">
                     <Trash2 size={13} />
                   </button>
                 )}
@@ -108,22 +152,22 @@ export default function AudioConfigPage() {
             <h2 className="font-display text-[20px] font-extrabold mt-1">声纹样本库</h2>
           </div>
           <button
-            onClick={() => {
-              setSamples((p) => [...p, { id: uid("vs"), name: `sample_${p.length + 1}.wav`, size: 360_000, tag: "AI 合成" }]);
-              toast("success", "已新增样本");
-            }}
+            onClick={addSample}
             className="btn-ghost py-2 px-3 text-[12px]"
           >
             <Plus size={12} /> 上传样本
           </button>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
-          {samples.map((s) => (
+          {samples.items.map((s) => {
+            const label = s.tag === "synth" ? "AI 合成" : "真人";
+            const isSynth = s.tag === "synth";
+            return (
             <div key={s.id} className="p-4 rounded-2xl border border-border">
               <div className="flex items-center gap-2 mb-3">
-                <Mic2 size={14} style={{ color: s.tag === "AI 合成" ? "var(--coral)" : "var(--mint-deep)" }} />
-                <span className="font-mono text-[10px] uppercase tracking-[0.14em] font-bold" style={{ color: s.tag === "AI 合成" ? "var(--coral-deep)" : "var(--mint-deep)" }}>{s.tag}</span>
-                <button onClick={() => { setSamples((p) => p.filter((x) => x.id !== s.id)); toast("success", "已删除"); }} className="ml-auto text-ink-soft hover:text-coral-deep">
+                <Mic2 size={14} style={{ color: isSynth ? "var(--coral)" : "var(--mint-deep)" }} />
+                <span className="font-mono text-[10px] uppercase tracking-[0.14em] font-bold" style={{ color: isSynth ? "var(--coral-deep)" : "var(--mint-deep)" }}>{label}</span>
+                <button onClick={() => removeSample(s.id)} className="ml-auto text-ink-soft hover:text-coral-deep">
                   <Trash2 size={12} />
                 </button>
               </div>
@@ -132,7 +176,8 @@ export default function AudioConfigPage() {
                 {(s.size / 1024).toFixed(0)} KB
               </div>
             </div>
-          ))}
+            );
+          })}
         </div>
       </div>
     </AppShell>

@@ -3,25 +3,26 @@ import { useMemo, useState } from "react";
 import AppShell from "@/components/AppShell";
 import PageHeader from "@/components/shared/PageHeader";
 import { FAMILY_NAV } from "@/lib/nav";
-import { SEED, type KnowledgeArticle } from "@/lib/mock";
-import { useLocalStorage } from "@/lib/storage";
+import { type KnowledgeArticle } from "@/lib/mock";
+import { api } from "@/lib/api";
+import { useResource } from "@/lib/use-resource";
 import { Search, BookOpen, Clock, Eye, ArrowRight } from "lucide-react";
 
 const CATS = ["全部", "AI合成", "公检法冒充", "刷单返利", "投资理财", "情感诈骗", "贷款代办"] as const;
 
 export default function KnowledgePage() {
-  const [articles] = useLocalStorage<KnowledgeArticle[]>("knowledge", SEED.knowledge);
+  const articles = useResource<KnowledgeArticle>(() => api.knowledge.list({ pageSize: 100 }));
   const [cat, setCat] = useState<(typeof CATS)[number]>("全部");
   const [q, setQ] = useState("");
   const [active, setActive] = useState<KnowledgeArticle | null>(null);
 
   const list = useMemo(() => {
-    return articles.filter((a) => {
+    return articles.items.filter((a) => {
       const passCat = cat === "全部" || a.category === cat;
       const passQ = !q.trim() || (a.title + a.summary).toLowerCase().includes(q.toLowerCase());
       return passCat && passQ;
     });
-  }, [articles, cat, q]);
+  }, [articles.items, cat, q]);
 
   return (
     <AppShell role="family" userName="王磊" nav={FAMILY_NAV} breadcrumb={["SENTINEL", "家庭用户", "反诈知识库"]}>
@@ -30,6 +31,13 @@ export default function KnowledgePage() {
         title="反诈知识库"
         desc="阅读国家反诈中心公开的最新案例与防范要点，覆盖六大高发诈骗类型。"
       />
+
+      {articles.error && (
+        <div className="mb-4 px-4 py-3 rounded-2xl text-[13px] font-medium"
+             style={{ background: "var(--coral-soft)", color: "var(--coral-deep)", border: "1px solid var(--coral)" }}>
+          {articles.error}
+        </div>
+      )}
 
       <div className="mb-6 flex flex-wrap items-center gap-3">
         <div className="flex items-center gap-2 px-3 py-2 rounded-full bg-canvas-2 border border-border w-72">

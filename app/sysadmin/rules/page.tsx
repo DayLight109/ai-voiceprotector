@@ -7,32 +7,60 @@ import Modal from "@/components/shared/Modal";
 import Toggle from "@/components/shared/Toggle";
 import { useToast } from "@/components/shared/Toast";
 import { SYSADMIN_NAV } from "@/lib/nav";
-import { SEED, type ScamRule } from "@/lib/mock";
-import { useLocalStorage, uid } from "@/lib/storage";
+import { type ScamRule } from "@/lib/mock";
+import { api, APIError } from "@/lib/api";
+import { useResource } from "@/lib/use-resource";
 import { Plus, Trash2, Edit3, ScrollText } from "lucide-react";
 
 const CATS = ["全部", "切断外部联系", "制造紧迫感", "引导转账", "假冒权威", "索要敏感信息"] as const;
 
 export default function RulesPage() {
   const toast = useToast();
-  const [rules, setRules] = useLocalStorage<ScamRule[]>("sys.rules", SEED.rules);
+  const rules = useResource<ScamRule>(() => api.rules.list({ pageSize: 100 }));
   const [cat, setCat] = useState<(typeof CATS)[number]>("全部");
   const [editing, setEditing] = useState<ScamRule | null>(null);
   const [open, setOpen] = useState(false);
 
-  const view = useMemo(() => cat === "全部" ? rules : rules.filter((r) => r.category === cat), [rules, cat]);
+  const view = useMemo(() => cat === "全部" ? rules.items : rules.items.filter((r) => r.category === cat), [rules.items, cat]);
 
-  const onSubmit = (form: any) => {
-    if (editing) {
-      setRules((p) => p.map((r) => (r.id === editing.id ? { ...editing, ...form, weight: Number(form.weight) } : r)));
-      toast("success", "已更新规则");
-    } else {
-      const entry: ScamRule = { id: uid("r"), category: form.category, keyword: form.keyword, weight: Number(form.weight), enabled: true };
-      setRules((p) => [entry, ...p]);
-      toast("success", "已新增规则", form.keyword);
+  const onSubmit = async (form: any) => {
+    try {
+      if (editing) {
+        await api.rules.update(editing.id, {
+          category: form.category, keyword: form.keyword, weight: Number(form.weight),
+        });
+        toast("success", "已更新规则");
+      } else {
+        await api.rules.create({
+          category: form.category, keyword: form.keyword, weight: Number(form.weight), enabled: true,
+        });
+        toast("success", "已新增规则", form.keyword);
+      }
+      setOpen(false);
+      setEditing(null);
+      rules.refresh();
+    } catch (e) {
+      toast("error", e instanceof APIError ? e.message : "保存失败");
     }
-    setOpen(false);
-    setEditing(null);
+  };
+
+  const onToggle = async (r: ScamRule, v: boolean) => {
+    try {
+      await api.rules.update(r.id, { enabled: v });
+      rules.refresh();
+    } catch (e) {
+      toast("error", e instanceof APIError ? e.message : "更新失败");
+    }
+  };
+
+  const onDelete = async (id: string) => {
+    try {
+      await api.rules.remove(id);
+      toast("success", "已删除");
+      rules.refresh();
+    } catch (e) {
+      toast("error", e instanceof APIError ? e.message : "删除失败");
+    }
   };
 
   return (
@@ -54,13 +82,19 @@ export default function RulesPage() {
           return (
             <button key={c} onClick={() => setCat(c)} className="px-3 py-1.5 rounded-full text-[12px] font-bold transition-colors" style={{ background: active ? "var(--indigo)" : "var(--surface)", color: active ? "#fff" : "var(--ink-2)", border: active ? "none" : "1px solid var(--border)" }}>
               {c}
-              <span className="ml-1.5 opacity-70">{c === "全部" ? rules.length : rules.filter((r) => r.category === c).length}</span>
+              <span className="ml-1.5 opacity-70">{c === "全部" ? rules.items.length : rules.items.filter((r) => r.category === c).length}</span>
             </button>
           );
         })}
       </div>
 
       <div className="panel p-6">
+        {rules.error && (
+          <div className="mb-4 px-4 py-3 rounded-2xl text-[13px] font-medium"
+               style={{ background: "var(--coral-soft)", color: "var(--coral-deep)", border: "1px solid var(--coral)" }}>
+            {rules.error}
+          </div>
+        )}
         <DataTable<ScamRule>
           rows={view}
           searchKeys={["keyword", "category"]}
@@ -70,14 +104,14 @@ export default function RulesPage() {
             { key: "weight", label: "权重", align: "right", render: (r) => <span className="font-mono font-extrabold" style={{ color: r.weight >= 85 ? "var(--coral-deep)" : "var(--ink)" }}>{r.weight}</span> },
             {
               key: "enabled", label: "状态", render: (r) => (
-                <Toggle checked={r.enabled} onChange={(v) => setRules((p) => p.map((x) => (x.id === r.id ? { ...x, enabled: v } : x)))} />
+                <Toggle checked={r.enabled} onChange={(v) => onToggle(r, v)} />
               )
             },
           ]}
           actions={(r) => (
             <div className="flex items-center gap-1 justify-end">
               <button onClick={() => { setEditing(r); setOpen(true); }} className="w-8 h-8 rounded-lg hover:bg-canvas-2 flex items-center justify-center"><Edit3 size={13} /></button>
-              <button onClick={() => { setRules((p) => p.filter((x) => x.id !== r.id)); toast("success", "已删除"); }} className="w-8 h-8 rounded-lg hover:bg-coral-soft text-coral-deep flex items-center justify-center"><Trash2 size={13} /></button>
+              <button onClick={() => onDelete(r.id)} className="w-8 h-8 rounded-lg hover:bg-coral-soft text-coral-deep flex items-center justify-center"><Trash2 size={13} /></button>
             </div>
           )}
         />
